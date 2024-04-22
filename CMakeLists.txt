@@ -3,9 +3,15 @@ project(main LANGUAGES CXX C)
 
 include(./common/cmake-common.cmake)
 
-include_directories(include)
+include_directories(include src)
 
-FILE(GLOB SRC_FILES "src/*.cpp")
-add_executable(main ${SRC_FILES})
+SET(CMAKE_CXX_FLAGS  "-g -Wall -Wextra")
 
-deal_ii_setup_target(main)
+FILE(GLOB SRC_FILES "src/main.cpp" "src/DTR.cpp")
+FILE(GLOB SRC_FILES_MF "src/main_mf.cpp")
+
+add_executable(matrixbased ${SRC_FILES})
+add_executable(matrixfree ${SRC_FILES_MF})
+
+deal_ii_setup_target(matrixbased)
+deal_ii_setup_target(matrixfree)

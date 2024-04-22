@@ -51,7 +51,6 @@ main(int /*argc*/, char * /*argv*/[])
       problem.solve();
       problem.output();
 
-      // Only for Exercise 1:
       const double error_L2 = problem.compute_error(VectorTools::L2_norm);
       const double error_H1 = problem.compute_error(VectorTools::H1_norm);
 
@@ -63,7 +62,6 @@ main(int /*argc*/, char * /*argv*/[])
                        << std::endl;
     }
 
-  // Only for Exercise 1:
   table.evaluate_all_convergence_rates(ConvergenceTable::reduction_rate_log2);
   table.set_scientific("L2", true);
   table.set_scientific("H1", true);

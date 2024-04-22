@@ -39,7 +39,6 @@ class DTR
 {
 public:
   // Physical dimension (1D, 2D, 3D)
-  // EXAM: DIMENSION
   static constexpr unsigned int dim = 2;
 
   // Diffusion coefficient.
