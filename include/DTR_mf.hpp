@@ -1,6 +1,5 @@
 #pragma once
 
-// First include the necessary files from the deal.II library.
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/function.h>
 #include <deal.II/base/timer.h>
@@ -10,11 +9,6 @@
 #include <deal.II/lac/la_parallel_vector.h>
 #include <deal.II/lac/precondition.h>
 
-// simplex meshes
-// #include <deal.II/fe/fe_simplex_p.h>
-// #include <deal.II/fe/mapping_fe.h>
-
-// quadrilateral meshes
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/mapping_q1.h>
 
@@ -32,7 +26,7 @@
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/vector_tools.h>
 
-// Then include the matrix-free headers
+// Include the matrix-free headers
 #include <deal.II/matrix_free/matrix_free.h>
 #include <deal.II/matrix_free/operators.h>
 #include <deal.II/matrix_free/fe_evaluation.h>
@@ -45,8 +39,7 @@ namespace Step37
 {
   using namespace dealii;
 
-  // To be efficient, the operations performed in the matrix-free
-  // implementation require knowledge of loop lengths at compile time
+  // To be efficient matrix-free implementation require knowledge of loop lengths at compile time
   const unsigned int degree_finite_element = 2;
   const unsigned int dimension = 2;
   const unsigned int dim = dimension;
@@ -136,7 +129,7 @@ namespace Step37
   public:
     virtual double value(const Point<dim> & /*p*/, const unsigned int /*component*/ = 0) const override
     {
-      return 1.0;
+      return 0.0;
     }
   };
 
