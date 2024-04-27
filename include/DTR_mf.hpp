@@ -35,7 +35,7 @@
 #include <iostream>
 #include <fstream>
 
-namespace Step37
+namespace DTR_mf
 {
   using namespace dealii;
 
@@ -43,6 +43,7 @@ namespace Step37
   const unsigned int degree_finite_element = 2;
   const unsigned int dimension = 2;
   const unsigned int dim = dimension;
+  const char bcs[4] = {'D', 'N', 'D', 'N'};
 
   template <int dim>
   class DiffusionCoefficient : public Function<dim>
@@ -56,7 +57,7 @@ namespace Step37
     template <typename number>
     number value(const Point<dim, number> & /*p*/, const unsigned int /*component*/ = 0) const
     {
-      return 1.0;
+      return 1.;
     }
   };
 
@@ -72,8 +73,8 @@ namespace Step37
     template <typename number>
     void vector_value(const Point<dim, number> & /*p*/, Vector<number> &values) const
     {
-      values[0] = 1.0;
-      values[1] = 1.0;
+      values[0] = 1.;
+      values[1] = 1.;
     }
 
     virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
@@ -85,9 +86,9 @@ namespace Step37
     number value(const Point<dim, number> & /*p*/, const unsigned int component = 0) const
     {
       if (component == 0)
-        return 1.0;
+        return 1.;
       else
-        return 1.0;
+        return 1.;
     }
   };
 
@@ -103,7 +104,7 @@ namespace Step37
     template <typename number>
     number value(const Point<dim, number> & /*p*/, const unsigned int /*component*/ = 0) const
     {
-      return 1.0;
+      return 1.;
     }
   };
 
@@ -119,7 +120,7 @@ namespace Step37
     template <typename number>
     number value(const Point<dim, number> &p, const unsigned int /*component*/ = 0) const
     {
-      return (exp(p[0]) - 1.) * (exp(p[1]) - 1.);
+      return (std::exp(p[0]) - number(1.)) * (std::exp(p[1]) - number(1.));
     }
   };
 
@@ -127,27 +128,44 @@ namespace Step37
   class DirichletBC : public Function<dim>
   {
   public:
-    virtual double value(const Point<dim> & /*p*/, const unsigned int /*component*/ = 0) const override
+      virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
     {
-      return 1.0;
+      return value<double>(p, component);
+    }
+    template <typename number>
+    double value(const Point<dim, number> & /*p*/, const unsigned int /*component*/ = 0) const
+    {
+      return 1.;
     }
   };
 
   class NeumannBC1 : public Function<dim>
   {
   public:
-    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
+    virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
     {
-      return std::exp(1) * (std::exp(p[1]) - 1);
+      return value<double>(p, component);
+    }
+
+    template <typename number>
+    number value(const Point<dim, number> &p, const unsigned int /*component*/ = 0) const
+    {
+      return number(std::exp(1.)) * (std::exp(p[1]) - number(1.));
     }
   };
 
   class NeumannBC2 : public Function<dim>
   {
   public:
-    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
+    virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
     {
-      return std::exp(1) * (std::exp(p[0]) - 1);
+      return value<double>(p, component);
+    }
+
+    template <typename number>
+    number value(const Point<dim, number> &p, const unsigned int /*component*/ = 0) const
+    {
+      return number(std::exp(1.)) * (std::exp(p[0]) - number(1.));
     }
   };
 
@@ -223,7 +241,7 @@ namespace Step37
   class LaplaceProblem
   {
   public:
-    LaplaceProblem(const std::string &mesh_file_name_);
+    LaplaceProblem();
     void run();
 
   private:
@@ -258,11 +276,13 @@ namespace Step37
     LinearAlgebra::distributed::Vector<double> lifting;
     LinearAlgebra::distributed::Vector<double> system_rhs;
 
-    std::string mesh_file_name;
-
     double setup_time;
     ConditionalOStream pcout;
     ConditionalOStream time_details;
+
+    DirichletBC dirichletBC;
+    NeumannBC1 neumannBC1;
+    NeumannBC2 neumannBC2;
   };
 
   // Helper function to evaluate a vectorial function at a VectorizedArray of points.
@@ -270,7 +290,7 @@ namespace Step37
   Tensor<1, dim, VectorizedArray<number>>
   evaluate_vector_function(const Function<dim> &function, const Point<dim, VectorizedArray<number>> &p_vectorized)
   {
-    TransportCoefficient<dim> transport_function; //TODO: remove this
+    TransportCoefficient<dim> transport_function; // TODO: remove this
 
     Tensor<1, dim, VectorizedArray<number>> result;
     for (unsigned int v = 0; v < VectorizedArray<number>::size(); ++v)

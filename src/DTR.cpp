@@ -1,6 +1,6 @@
 #include "DTR.hpp"
 
-const char bcs[4] = {'Z', 'Z', 'Z', 'Z'};
+const char bcs[4] = {'D', 'N', 'D', 'N'};
 
 void
 DTR::setup()

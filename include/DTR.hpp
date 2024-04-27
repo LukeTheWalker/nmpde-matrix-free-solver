@@ -120,7 +120,7 @@ public:
     value(const Point<dim> & p,
           const unsigned int /*component*/ = 0) const override
     {
-      return (std::exp(p[0]) - 1)*(std::exp(p[1]) - 1);
+      return (std::exp(p[0]) - 1.)*(std::exp(p[1]) - 1.);
     }
   };
 
@@ -137,7 +137,7 @@ public:
     value(const Point<dim> &/*p*/,
           const unsigned int /*component*/ = 0) const override
     {
-      return 0.0;
+      return 1.0;
     }
   };
 

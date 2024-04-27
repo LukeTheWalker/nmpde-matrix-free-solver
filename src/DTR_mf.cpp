@@ -1,6 +1,6 @@
 #include "DTR_mf.hpp"
 
-namespace Step37
+namespace DTR_mf
 {
   // This is the constructor of the @p DTROperation class.All it does is
   // to call the default constructor of the base class
@@ -182,7 +182,7 @@ namespace Step37
   //    convergence of the geometric multigrid routines.
   // - For the distributed grid we need to specifically enable the multigrid hierarchy
   template <int dim>
-  LaplaceProblem<dim>::LaplaceProblem(const std::string &mesh_file_name_)
+  LaplaceProblem<dim>::LaplaceProblem()
 #ifdef DEAL_II_WITH_P4EST
       : triangulation(MPI_COMM_WORLD,
                       Triangulation<dim>::limit_level_difference_at_vertices,
@@ -196,7 +196,6 @@ namespace Step37
         dof_handler(triangulation),
         // mapping(FE_SimplexP<dim>(1)), (only for simplex elements)
         mapping(),
-        mesh_file_name(mesh_file_name_),
         setup_time(0.),
         pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
         // ! remove the false for the additional output stream for timing
@@ -228,9 +227,18 @@ namespace Step37
     constraints.reinit(locally_relevant_dofs);
 
     DoFTools::make_hanging_node_constraints(dof_handler, constraints);
-    // ! add D BC indices
-    VectorTools::interpolate_boundary_values(
-        mapping, dof_handler, 0, Functions::ZeroFunction<dim>(), constraints);
+
+    // Set all Dirichlet BC to homogeneous ones
+    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+    Functions::ZeroFunction<dim> zero_function(dim);
+    for (unsigned int i = 0; i < 4; ++i)
+      if (bcs[i] == 'D' || bcs[i] == 'Z')
+        boundary_functions[i] = &zero_function;
+    VectorTools::interpolate_boundary_values(mapping,
+                                             dof_handler,
+                                             boundary_functions,
+                                             constraints);
+
     constraints.close();
 
     setup_time += time.wall_time();
@@ -245,6 +253,10 @@ namespace Step37
       additional_data.tasks_parallel_scheme = MatrixFree<dim, double>::AdditionalData::none;
       // Define the flags for the needed storage
       additional_data.mapping_update_flags =
+          (update_values | update_gradients | update_JxW_values | update_quadrature_points);
+      additional_data.mapping_update_flags_boundary_faces =
+          (update_values | update_gradients | update_JxW_values | update_quadrature_points);
+      additional_data.mapping_update_flags_faces_by_cells =
           (update_values | update_gradients | update_JxW_values | update_quadrature_points);
       std::shared_ptr<MatrixFree<dim, double>> system_mf_storage(new MatrixFree<dim, double>());
 
@@ -275,7 +287,10 @@ namespace Step37
     const unsigned int nlevels = triangulation.n_global_levels();
     mg_matrices.resize(0, nlevels - 1);
     // ! set indexes
-    const std::set<types::boundary_id> dirichlet_boundary_ids = {0};
+    std::set<types::boundary_id> dirichlet_boundary_ids;
+    for (unsigned int i = 0; i < 4; ++i)
+      if (bcs[i] == 'D' || bcs[i] == 'Z')
+        dirichlet_boundary_ids.emplace(i);
     // MGConstrainedDoFs keeps indices subject to BCs and indices on edges between
     // different refinement levels
     mg_constrained_dofs.initialize(dof_handler);
@@ -289,17 +304,27 @@ namespace Step37
           DoFTools::extract_locally_relevant_level_dofs(dof_handler, level);
       AffineConstraints<double> level_constraints;
       level_constraints.reinit(relevant_dofs);
-      // Changed here for inhomogeneous Dirichlet BC
-      // level_constraints.add_lines(mg_constrained_dofs.get_boundary_indices(level));
+      level_constraints.add_lines(mg_constrained_dofs.get_boundary_indices(level));
       DoFTools::make_hanging_node_constraints(dof_handler, level_constraints);
-      VectorTools::interpolate_boundary_values(
-          mapping, dof_handler, 0, Functions::ZeroFunction<dim>(), level_constraints);
+
+      Functions::ZeroFunction<dim> zero_function(dim);
+      for (unsigned int i = 0; i < 4; ++i)
+        if (bcs[i] == 'D' || bcs[i] == 'Z')
+          boundary_functions[i] = &zero_function;
+      VectorTools::interpolate_boundary_values(mapping,
+                                               dof_handler,
+                                               boundary_functions,
+                                               level_constraints);
       level_constraints.close();
 
       typename MatrixFree<dim, float>::AdditionalData additional_data;
       // ! we may use threads (here are not used)
       additional_data.tasks_parallel_scheme = MatrixFree<dim, float>::AdditionalData::none;
       additional_data.mapping_update_flags =
+          (update_values | update_gradients | update_JxW_values | update_quadrature_points);
+      additional_data.mapping_update_flags_boundary_faces =
+          (update_values | update_gradients | update_JxW_values | update_quadrature_points);
+      additional_data.mapping_update_flags_faces_by_cells =
           (update_values | update_gradients | update_JxW_values | update_quadrature_points);
       additional_data.mg_level = level;
       std::shared_ptr<MatrixFree<dim, float>> mg_mf_storage_level(new MatrixFree<dim, float>());
@@ -335,10 +360,15 @@ namespace Step37
 
     // Interpolate boundary values for inhomogeneous Dirichlet BC on vector lifting
     std::map<types::global_dof_index, double> boundary_values;
+    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+
+    for (unsigned int i = 0; i < 4; ++i)
+      if (bcs[i] == 'D')
+        boundary_functions[i] = &dirichletBC;
+
     VectorTools::interpolate_boundary_values(mapping,
                                              dof_handler,
-                                             0,
-                                             DirichletBC(),
+                                             boundary_functions,
                                              boundary_values);
     for (const std::pair<const types::global_dof_index, double> &pair : boundary_values)
       if (lifting.locally_owned_elements().is_element(pair.first))
@@ -355,6 +385,7 @@ namespace Step37
     const Table<2, VectorizedArray<double>> &forcing_term_coefficient =
         system_matrix.get_forcing_term_coefficient();
 
+    // Evaluate the rhs integral over the interior domain
     FEEvaluation<dim, degree_finite_element> fe_eval(*system_matrix.get_matrix_free());
 
     for (unsigned int cell = 0; cell < system_matrix.get_matrix_free()->n_cell_batches(); ++cell)
@@ -364,7 +395,7 @@ namespace Step37
       // have no constraints. This is needed to leave unchanged the values on the previously
       // setted value of the dofs with inhomogeneous Dirichlet constraints
       fe_eval.read_dof_values_plain(lifting);
-      fe_eval.evaluate(EvaluationFlags::gradients);
+      fe_eval.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
 
       for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
       {
@@ -378,6 +409,25 @@ namespace Step37
       fe_eval.distribute_local_to_global(system_rhs);
       // no need for constraints.distribute_local_to_global since is done by the above
     }
+
+    // Integrate over faces batches to add the contribution of Neumann BC
+    FEFaceEvaluation<dim, degree_finite_element> fe_face_eval(*system_matrix.get_matrix_free());
+    for (unsigned int face = 0; face < system_matrix.get_matrix_free()->n_boundary_face_batches(); ++face)
+    {
+      fe_face_eval.reinit(face);
+
+      for (unsigned int q = 0; q < fe_face_eval.n_q_points; ++q)
+      {
+        if (fe_face_eval.boundary_id() == 1)
+          fe_face_eval.submit_value(neumannBC1.value(fe_face_eval.quadrature_point(q)), q);
+        else if (fe_face_eval.boundary_id() == 3)
+          fe_face_eval.submit_value(neumannBC2.value(fe_face_eval.quadrature_point(q)), q);
+      }
+
+      fe_face_eval.integrate(EvaluationFlags::values);
+      fe_face_eval.distribute_local_to_global(system_rhs);
+    }
+
     // Send the contributions to the respective owner of the dof
     system_rhs.compress(VectorOperation::add);
 
@@ -519,30 +569,6 @@ namespace Step37
             << std::endl;
     }
 
-    // Create the mesh reading the mesh from file
-    /*{
-      pcout << "Initialize triangulation" << std::endl;
-      // Read the mesh to a serial triangulation
-      Triangulation<dim> triangulation_serial;
-      {
-        GridIn<dim> grid_in;
-        grid_in.attach_triangulation(triangulation_serial);
-
-        std::ifstream grid_in_file(mesh_file_name);
-        grid_in.read_msh(grid_in_file);
-      }
-      // Copy the triangulation into a parallel one
-      {
-        GridTools::partition_triangulation(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD), triangulation_serial);
-        const auto construction_data = TriangulationDescription::Utilities::
-            create_description_from_triangulation(triangulation_serial, MPI_COMM_WORLD);
-        triangulation.create_triangulation(construction_data);
-      }
-
-      pcout << "  Number of elements = " << triangulation.n_active_cells()
-            << std::endl;
-    }*/
-
     for (unsigned int cycle = 0; cycle < 9 - dim; ++cycle)
     {
       pcout << "Cycle " << cycle << std::endl;
@@ -550,7 +576,11 @@ namespace Step37
       if (cycle == 0)
       {
         GridGenerator::hyper_cube(triangulation, 0., 1.);
-        // GridGenerator::convert_hypercube_to_simplex_mesh(triangulation_serial, triangulation);
+
+        // Assign Boundary IDs
+        for (int i = 0; i < dim * dim; ++i)
+          triangulation.begin_active()->face(i)->set_boundary_id(i);
+
         triangulation.refine_global(3 - dim);
       }
 
