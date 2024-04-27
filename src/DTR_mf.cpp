@@ -199,9 +199,7 @@ namespace Step37
         mesh_file_name(mesh_file_name_),
         setup_time(0.),
         pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
-        // ! LaplaceProblem class holds an additional output stream that
-        // collects detailed timings about the setup phase. Remove the false argument
-        // prints all the details.
+        // ! remove the false for the additional output stream for timing
         time_details(std::cout, false && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
   }
@@ -218,21 +216,21 @@ namespace Step37
     dof_handler.distribute_dofs(fe);
     dof_handler.distribute_mg_dofs();
 
-    pcout << "Number of degrees of freedom: " << dof_handler.n_dofs()
-          << std::endl;
+    pcout << "Number of degrees of freedom: " << dof_handler.n_dofs() << std::endl;
 
     // Consider only locally relevant dofs otherwise memory will explode
     const IndexSet locally_relevant_dofs =
         DoFTools::extract_locally_relevant_dofs(dof_handler);
 
     // Initialize and setup Dirichlet and hanging nodes constraints add also inhomogeneous
-    // Dirichlet BC, they are not considered by read_dof_values but are needed in the rhs setup
+    // Dirichlet BC, they are not considered by read_dof_values but are needed for the lifting
     constraints.clear();
     constraints.reinit(locally_relevant_dofs);
-    // ! add each D boundary condition
+
     DoFTools::make_hanging_node_constraints(dof_handler, constraints);
+    // ! add D BC indices
     VectorTools::interpolate_boundary_values(
-        mapping, dof_handler, 0, DirichletBC(), constraints);
+        mapping, dof_handler, 0, Functions::ZeroFunction<dim>(), constraints);
     constraints.close();
 
     setup_time += time.wall_time();
@@ -265,6 +263,7 @@ namespace Step37
                                         ForcingTerm<dim>());
 
     system_matrix.initialize_dof_vector(solution);
+    system_matrix.initialize_dof_vector(lifting);
     system_matrix.initialize_dof_vector(system_rhs);
 
     setup_time += time.wall_time();
@@ -294,7 +293,7 @@ namespace Step37
       // level_constraints.add_lines(mg_constrained_dofs.get_boundary_indices(level));
       DoFTools::make_hanging_node_constraints(dof_handler, level_constraints);
       VectorTools::interpolate_boundary_values(
-          mapping, dof_handler, 0, DirichletBC(), level_constraints);
+          mapping, dof_handler, 0, Functions::ZeroFunction<dim>(), level_constraints);
       level_constraints.close();
 
       typename MatrixFree<dim, float>::AdditionalData additional_data;
@@ -332,14 +331,27 @@ namespace Step37
     Timer time;
 
     system_rhs = 0;
+    lifting = 0;
 
-    // Set constrained dofs to satisfy inhomogeneous Dirichlet constraints
-    solution = 0;
-    constraints.distribute(solution);
-    solution.update_ghost_values();
+    // Interpolate boundary values for inhomogeneous Dirichlet BC on vector lifting
+    std::map<types::global_dof_index, double> boundary_values;
+    VectorTools::interpolate_boundary_values(mapping,
+                                             dof_handler,
+                                             0,
+                                             DirichletBC(),
+                                             boundary_values);
+    for (const std::pair<const types::global_dof_index, double> &pair : boundary_values)
+      if (lifting.locally_owned_elements().is_element(pair.first))
+        lifting(pair.first) = pair.second;
+    lifting.update_ghost_values();
+
     // Reference to diffusion coefficient
     const Table<2, VectorizedArray<double>> &diffusion_coefficient =
         system_matrix.get_diffusion_coefficient();
+    const Table<2, Tensor<1, dim, VectorizedArray<double>>> &transport_coefficient =
+        system_matrix.get_transport_coefficient();
+    const Table<2, VectorizedArray<double>> &reaction_coefficient =
+        system_matrix.get_reaction_coefficient();
     const Table<2, VectorizedArray<double>> &forcing_term_coefficient =
         system_matrix.get_forcing_term_coefficient();
 
@@ -351,13 +363,14 @@ namespace Step37
       // read_dof_values_plain stores internally the values on the current cell for dofs that
       // have no constraints. This is needed to leave unchanged the values on the previously
       // setted value of the dofs with inhomogeneous Dirichlet constraints
-      fe_eval.read_dof_values_plain(solution);
+      fe_eval.read_dof_values_plain(lifting);
       fe_eval.evaluate(EvaluationFlags::gradients);
 
       for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
       {
-        // ! add also transport derived term + neumann boundaries
         fe_eval.submit_gradient(-diffusion_coefficient(cell, q) * fe_eval.get_gradient(q), q);
+        fe_eval.submit_value(-scalar_product(transport_coefficient(cell, q), fe_eval.get_gradient(q)), q);
+        fe_eval.submit_value(-reaction_coefficient(cell, q) * fe_eval.get_value(q), q);
         fe_eval.submit_value(forcing_term_coefficient(cell, q), q);
       }
 
@@ -445,7 +458,7 @@ namespace Step37
     time.reset();
     time.start();
 
-    // Set the correct constrained values in a zeroed vector
+    // Set the correct constrained values to zero in the solution vector
     constraints.set_zero(solution);
     try
     {
@@ -458,11 +471,13 @@ namespace Step37
 
     constraints.distribute(solution);
 
+    // Add the lifting to the solution to set the correct inhomogeneous Dirichlet BC
+    solution += lifting;
+
     pcout << "Time solve (" << solver_control.last_step() << " iterations)"
           << (solver_control.last_step() < 10 ? "  " : " ") << "(CPU/wall) "
           << time.cpu_time() << "s/" << time.wall_time() << "s\n";
   }
-
 
   template <int dim>
   void LaplaceProblem<dim>::output_results(const unsigned int cycle) const

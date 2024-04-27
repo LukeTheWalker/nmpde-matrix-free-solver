@@ -129,7 +129,7 @@ namespace Step37
   public:
     virtual double value(const Point<dim> & /*p*/, const unsigned int /*component*/ = 0) const override
     {
-      return 0.0;
+      return 1.0;
     }
   };
 
@@ -176,6 +176,16 @@ namespace Step37
     const Table<2, VectorizedArray<number>> &get_diffusion_coefficient() const
     {
       return diffusion_coefficient;
+    }
+
+    const Table<2, Tensor<1, dim, VectorizedArray<number>>> &get_transport_coefficient() const
+    {
+      return transport_coefficient;
+    }
+
+    const Table<2, VectorizedArray<number>> &get_reaction_coefficient() const
+    {
+      return reaction_coefficient;
     }
 
     const Table<2, VectorizedArray<number>> &get_forcing_term_coefficient() const
@@ -245,6 +255,7 @@ namespace Step37
     MGLevelObject<LevelMatrixType> mg_matrices;
 
     LinearAlgebra::distributed::Vector<double> solution;
+    LinearAlgebra::distributed::Vector<double> lifting;
     LinearAlgebra::distributed::Vector<double> system_rhs;
 
     std::string mesh_file_name;
