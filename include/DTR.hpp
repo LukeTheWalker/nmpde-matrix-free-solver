@@ -58,7 +58,7 @@ public:
           const unsigned int /*component*/ = 0) const override
     {
       // EXAM: DIFFUSION COEFFICIENT
-      return 1.0;
+      return 1.;
     }
   };
 
@@ -74,8 +74,8 @@ public:
     vector_value(const Point<dim> & /*p*/,
                  Vector<double> &values) const override
     {
-      values[0] = 1.0;
-      values[1] = 1.0;
+      values[0] = 1.;
+      values[1] = 1.;
     }
 
     virtual double
@@ -83,9 +83,9 @@ public:
           const unsigned int component = 0) const override
     {
         if (component == 0)
-            return 1.0;
+            return 1.;
         else
-            return 1.0;
+            return 1.;
     }
   };
 
@@ -103,7 +103,7 @@ public:
           const unsigned int /*component*/ = 0) const override
     {
       // EXAM: REACTION COEFFICIENT
-      return 1.0;
+      return 1.;
     }
   };
 
@@ -137,7 +137,7 @@ public:
     value(const Point<dim> &/*p*/,
           const unsigned int /*component*/ = 0) const override
     {
-      return 1.0;
+      return 0.;
     }
   };
 
@@ -152,7 +152,7 @@ class NeumannBC1 : public Function<dim>
     virtual double
     value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
     {
-      return std::exp(1)*(std::exp(p[1]) - 1);
+      return std::exp(1.)*(std::exp(p[1]) - 1.);
     }
   };
 
@@ -167,7 +167,7 @@ class NeumannBC2 : public Function<dim>
     virtual double
     value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
     {
-      return std::exp(1)*(std::exp(p[0]) - 1);
+      return std::exp(1.)*(std::exp(p[0]) - 1.);
     }
   };
 
@@ -184,7 +184,7 @@ class NeumannBC2 : public Function<dim>
     value(const Point<dim> &p,
           const unsigned int /*component*/ = 0) const override
     {
-      return (std::exp(p[0]) - 1)*(std::exp(p[1]) - 1);
+      return (std::exp(p[0]) - 1.)*(std::exp(p[1]) - 1.);
     }
 
     // Gradient evaluation.
@@ -194,8 +194,8 @@ class NeumannBC2 : public Function<dim>
     {
       Tensor<1, dim> result;
 
-      result[0] = std::exp(p[0])*(std::exp(p[1]) - 1);
-      result[1] = std::exp(p[1])*(std::exp(p[0]) - 1);
+      result[0] = std::exp(p[0])*(std::exp(p[1]) - 1.);
+      result[1] = std::exp(p[1])*(std::exp(p[0]) - 1.);
 
       return result;
     }

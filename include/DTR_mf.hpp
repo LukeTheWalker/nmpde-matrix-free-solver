@@ -43,7 +43,7 @@ namespace DTR_mf
   const unsigned int degree_finite_element = 2;
   const unsigned int dimension = 2;
   const unsigned int dim = dimension;
-  const char bcs[4] = {'D', 'N', 'D', 'N'};
+  const char bcs[4] = {'Z', 'N', 'Z', 'N'};
 
   template <int dim>
   class DiffusionCoefficient : public Function<dim>
@@ -120,7 +120,7 @@ namespace DTR_mf
     template <typename number>
     number value(const Point<dim, number> &p, const unsigned int /*component*/ = 0) const
     {
-      return (std::exp(p[0]) - number(1.)) * (std::exp(p[1]) - number(1.));
+      return (exp(p[0]) - number(1.)) * (exp(p[1]) - number(1.));
     }
   };
 
@@ -150,7 +150,7 @@ namespace DTR_mf
     template <typename number>
     number value(const Point<dim, number> &p, const unsigned int /*component*/ = 0) const
     {
-      return number(std::exp(1.)) * (std::exp(p[1]) - number(1.));
+      return number(exp(1.)) * (exp(p[1]) - number(1.));
     }
   };
 
@@ -165,7 +165,7 @@ namespace DTR_mf
     template <typename number>
     number value(const Point<dim, number> &p, const unsigned int /*component*/ = 0) const
     {
-      return number(std::exp(1.)) * (std::exp(p[0]) - number(1.));
+      return number(exp(1.)) * (exp(p[0]) - number(1.));
     }
   };
 

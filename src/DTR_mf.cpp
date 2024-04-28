@@ -355,7 +355,41 @@ namespace DTR_mf
   {
     Timer time;
 
+    const Table<2, VectorizedArray<double>> &forcing_term_coefficient =
+        system_matrix.get_forcing_term_coefficient();
+
     system_rhs = 0;
+    FEEvaluation<dim, degree_finite_element> phi(*system_matrix.get_matrix_free());
+    for (unsigned int cell = 0; cell < system_matrix.get_matrix_free()->n_cell_batches();
+         ++cell)
+    {
+      phi.reinit(cell);
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        phi.submit_value(forcing_term_coefficient(cell, q), q);
+      phi.integrate(EvaluationFlags::values);
+      phi.distribute_local_to_global(system_rhs);
+    }
+
+    FEFaceEvaluation<dim, degree_finite_element> fe_face_eval(*system_matrix.get_matrix_free());
+    for (unsigned int face = 0; face < system_matrix.get_matrix_free()->n_boundary_face_batches(); ++face)
+    {
+      fe_face_eval.reinit(face);
+
+      for (unsigned int q = 0; q < fe_face_eval.n_q_points; ++q)
+      {
+        if (fe_face_eval.boundary_id() == 1)
+          fe_face_eval.submit_value(neumannBC1.value(fe_face_eval.quadrature_point(q)), q);
+        else if (fe_face_eval.boundary_id() == 3)
+          fe_face_eval.submit_value(neumannBC2.value(fe_face_eval.quadrature_point(q)), q);
+      }
+
+      fe_face_eval.integrate(EvaluationFlags::values);
+      fe_face_eval.distribute_local_to_global(system_rhs);
+    }
+
+    system_rhs.compress(VectorOperation::add);
+
+    /*system_rhs = 0;
     lifting = 0;
 
     // Interpolate boundary values for inhomogeneous Dirichlet BC on vector lifting
@@ -433,7 +467,7 @@ namespace DTR_mf
 
     setup_time += time.wall_time();
     time_details << "Assemble right hand side   (CPU/wall) " << time.cpu_time()
-                 << "s/" << time.wall_time() << 's' << std::endl;
+                 << "s/" << time.wall_time() << 's' << std::endl;*/
   }
 
   template <int dim>
