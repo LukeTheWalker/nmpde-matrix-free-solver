@@ -194,7 +194,6 @@ namespace DTR_mf
         ,
         fe(degree_finite_element),
         dof_handler(triangulation),
-        // mapping(FE_SimplexP<dim>(1)), (only for simplex elements)
         mapping(),
         setup_time(0.),
         pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
@@ -256,8 +255,7 @@ namespace DTR_mf
           (update_values | update_gradients | update_JxW_values | update_quadrature_points);
       additional_data.mapping_update_flags_boundary_faces =
           (update_values | update_gradients | update_JxW_values | update_quadrature_points);
-      additional_data.mapping_update_flags_faces_by_cells =
-          (update_values | update_gradients | update_JxW_values | update_quadrature_points);
+
       std::shared_ptr<MatrixFree<dim, double>> system_mf_storage(new MatrixFree<dim, double>());
 
       system_mf_storage->reinit(mapping,
@@ -286,7 +284,7 @@ namespace DTR_mf
     // Initialize the matrices for the multigrid method on all the levels
     const unsigned int nlevels = triangulation.n_global_levels();
     mg_matrices.resize(0, nlevels - 1);
-    // ! set indexes
+    // Set all the Dirichlet BC to homogeneous ones
     std::set<types::boundary_id> dirichlet_boundary_ids;
     for (unsigned int i = 0; i < 4; ++i)
       if (bcs[i] == 'D' || bcs[i] == 'Z')
@@ -324,8 +322,7 @@ namespace DTR_mf
           (update_values | update_gradients | update_JxW_values | update_quadrature_points);
       additional_data.mapping_update_flags_boundary_faces =
           (update_values | update_gradients | update_JxW_values | update_quadrature_points);
-      additional_data.mapping_update_flags_faces_by_cells =
-          (update_values | update_gradients | update_JxW_values | update_quadrature_points);
+
       additional_data.mg_level = level;
       std::shared_ptr<MatrixFree<dim, float>> mg_mf_storage_level(new MatrixFree<dim, float>());
 
@@ -360,6 +357,8 @@ namespace DTR_mf
 
     system_rhs = 0;
     FEEvaluation<dim, degree_finite_element> phi(*system_matrix.get_matrix_free());
+
+    // Loop over the cells to add the forcing term contribution
     for (unsigned int cell = 0; cell < system_matrix.get_matrix_free()->n_cell_batches();
          ++cell)
     {
@@ -370,12 +369,25 @@ namespace DTR_mf
       phi.distribute_local_to_global(system_rhs);
     }
 
+    std::cout << "n_inner_face_batches: " << system_matrix.get_matrix_free()->n_inner_face_batches() << std::endl;
+    std::cout << "n_boundary_face_batches: " << system_matrix.get_matrix_free()->n_boundary_face_batches() << std::endl;
+
+    int count = 0;
+    // Loop over the boundary faces
     FEFaceEvaluation<dim, degree_finite_element> fe_face_eval(*system_matrix.get_matrix_free());
-    for (unsigned int face = 0; face < system_matrix.get_matrix_free()->n_boundary_face_batches(); ++face)
+    for (unsigned int face = system_matrix.get_matrix_free()->n_inner_face_batches();
+         face < (system_matrix.get_matrix_free()->n_inner_face_batches() + system_matrix.get_matrix_free()->n_boundary_face_batches());
+         ++face)
     {
       fe_face_eval.reinit(face);
+      fe_face_eval.read_dof_values_plain(solution);
 
-      for (unsigned int q = 0; q < fe_face_eval.n_q_points; ++q)
+      if (fe_face_eval.boundary_id() == 1 || fe_face_eval.boundary_id() == 3)
+      {
+        count++;
+      }
+
+      for (const unsigned int q : fe_face_eval.quadrature_point_indices())
       {
         if (fe_face_eval.boundary_id() == 1)
           fe_face_eval.submit_value(neumannBC1.value(fe_face_eval.quadrature_point(q)), q);
@@ -387,8 +399,11 @@ namespace DTR_mf
       fe_face_eval.distribute_local_to_global(system_rhs);
     }
 
+    std::cout << "Count boundary face batches: " << count << std::endl;
+
     system_rhs.compress(VectorOperation::add);
 
+    // IMPLEMENTATION FOR INHOMOGENEOUS D BC
     /*system_rhs = 0;
     lifting = 0;
 
@@ -537,7 +552,7 @@ namespace DTR_mf
 
     // Setup the solver
     SolverControl solver_control(100, 1e-12 * system_rhs.l2_norm());
-    SolverGMRES<LinearAlgebra::distributed::Vector<double>> solver(solver_control);
+    SolverCG<LinearAlgebra::distributed::Vector<double>> solver(solver_control);
 
     time.reset();
     time.start();
@@ -556,7 +571,7 @@ namespace DTR_mf
     constraints.distribute(solution);
 
     // Add the lifting to the solution to set the correct inhomogeneous Dirichlet BC
-    solution += lifting;
+    //! solution += lifting;
 
     pcout << "Time solve (" << solver_control.last_step() << " iterations)"
           << (solver_control.last_step() < 10 ? "  " : " ") << "(CPU/wall) "
@@ -612,11 +627,29 @@ namespace DTR_mf
         GridGenerator::hyper_cube(triangulation, 0., 1.);
 
         // Assign Boundary IDs
-        for (int i = 0; i < dim * dim; ++i)
-          triangulation.begin_active()->face(i)->set_boundary_id(i);
+        for (typename Triangulation<dim>::face_iterator face = triangulation.begin_face();
+             face != triangulation.end_face();
+             ++face)
+        {
+          if (face->at_boundary())
+          {
+            // x = 0
+            if (std::abs(face->center()[0] - 0.) < 1e-10)
+              face->set_boundary_id(0);
+            // x = 1
+            else if (std::abs(face->center()[0] - 1.) < 1e-10)
+              face->set_boundary_id(1);
+            // y = 0
+            else if (std::abs(face->center()[1] - 0.) < 1e-10)
+              face->set_boundary_id(2);
+            // y = 1
+            else if (std::abs(face->center()[1] - 1.) < 1e-10)
+              face->set_boundary_id(3);
+          }
+        }
 
         triangulation.refine_global(3 - dim);
-      }
+      } // end cycle 0
 
       triangulation.refine_global(1);
       setup_system();
