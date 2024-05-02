@@ -43,7 +43,7 @@ namespace DTR_mf
   const unsigned int degree_finite_element = 2;
   const unsigned int dimension = 2;
   const unsigned int dim = dimension;
-  const char bcs[4] = {'Z', 'N', 'Z', 'N'};
+  const char bcs[4] = {'Z', 'N', 'Z', 'N'}; // left, right, bottom, top
 
   template <int dim>
   class DiffusionCoefficient : public Function<dim>
@@ -128,14 +128,14 @@ namespace DTR_mf
   class DirichletBC : public Function<dim>
   {
   public:
-      virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
+    virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
     {
       return value<double>(p, component);
     }
     template <typename number>
     double value(const Point<dim, number> & /*p*/, const unsigned int /*component*/ = 0) const
     {
-      return 1.;
+      return 0.;
     }
   };
 
@@ -150,6 +150,7 @@ namespace DTR_mf
     template <typename number>
     number value(const Point<dim, number> &p, const unsigned int /*component*/ = 0) const
     {
+      AssertThrow(p[0] == number(1.), ExcInternalError());
       return number(exp(1.)) * (exp(p[1]) - number(1.));
     }
   };
@@ -165,7 +166,30 @@ namespace DTR_mf
     template <typename number>
     number value(const Point<dim, number> &p, const unsigned int /*component*/ = 0) const
     {
+      AssertThrow(p[1] == number(1.), ExcInternalError());
       return number(exp(1.)) * (exp(p[0]) - number(1.));
+    }
+  };
+
+  // Exact solution.
+  class ExactSolution : public Function<dim>
+  {
+  public:
+    // Evaluation.
+    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
+    {
+      return (std::exp(p[0]) - 1.) * (std::exp(p[1]) - 1.);
+    }
+
+    // Gradient evaluation.
+    virtual Tensor<1, dim> gradient(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
+    {
+      Tensor<1, dim> result;
+
+      result[0] = std::exp(p[0]) * (std::exp(p[1]) - 1.);
+      result[1] = std::exp(p[1]) * (std::exp(p[0]) - 1.);
+
+      return result;
     }
   };
 
@@ -243,6 +267,7 @@ namespace DTR_mf
   public:
     LaplaceProblem();
     void run();
+    double compute_error(const VectorTools::NormType &norm_type) const;
 
   private:
     void setup_system();
@@ -256,11 +281,10 @@ namespace DTR_mf
     Triangulation<dim> triangulation;
 #endif
 
-    // FE_Simplex<dim> fe;
     FE_Q<dim> fe;
     DoFHandler<dim> dof_handler;
 
-    // MappingFE<dim> mapping;
+    // Mapping with polynomial degree=1
     MappingQ1<dim> mapping;
 
     AffineConstraints<double> constraints;

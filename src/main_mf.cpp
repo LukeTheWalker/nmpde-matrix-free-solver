@@ -11,6 +11,13 @@ int main(int argc, char *argv[])
 
     LaplaceProblem<dimension> laplace_problem;
     laplace_problem.run();
+
+    const double error_L2 = laplace_problem.compute_error(VectorTools::L2_norm);
+    const double error_H1 = laplace_problem.compute_error(VectorTools::H1_norm);
+
+    std::cout << "L2 error: " << error_L2 << std::endl;
+    std::cout << "H1 error: " << error_H1 << std::endl;
+
   }
   catch (std::exception &exc)
   {

@@ -1,6 +1,6 @@
 #include "DTR.hpp"
 
-const char bcs[4] = {'D', 'N', 'D', 'N'};
+const char bcs[4] = {'Z', 'N', 'Z', 'N'};
 
 void
 DTR::setup()
@@ -295,7 +295,7 @@ DTR::solve()
 
   // Here we specify the maximum number of iterations of the iterative solver,
   // and its tolerance.
-  SolverControl solver_control(10000, 1e-16 * system_rhs.l2_norm());
+  SolverControl solver_control(10000, 1e-10 * system_rhs.l2_norm());
 
   // If the preconditioner is not symmetric, we need to use the GMRES method.
   SolverGMRES<Vector<double>> solver(solver_control);

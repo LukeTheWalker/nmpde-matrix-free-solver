@@ -18,15 +18,13 @@ namespace DTR_mf
   void DTROperation<dim, fe_degree, number>::clear()
   {
     diffusion_coefficient.reinit(0, 0);
+    transport_coefficient.reinit(0, 0);
+    reaction_coefficient.reinit(0, 0);
+    forcing_term_coefficient.reinit(0, 0);
     MatrixFreeOperators::Base<dim, LinearAlgebra::distributed::Vector<number>>::
         clear();
   }
 
-  // To initialize the coefficient, we directly give it the DiffusionCoefficient class
-  // defined above and then select the method
-  // <code>coefficient_function.value</code> with vectorized number (which the
-  // compiler can deduce from the point data type). The use of the
-  // FEEvaluation class (and its template arguments) will be explained below.
   template <int dim, int fe_degree, typename number>
   void DTROperation<dim, fe_degree, number>::evaluate_coefficients(
       const DiffusionCoefficient<dim> &diffusion_function,
@@ -45,14 +43,14 @@ namespace DTR_mf
     for (unsigned int cell = 0; cell < n_cells; ++cell)
     {
       fe_eval.reinit(cell);
-      for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
+      for (const unsigned int q : fe_eval.quadrature_point_indices())
       {
         // Diffusion scalar coefficient
         diffusion_coefficient(cell, q) =
             diffusion_function.value(fe_eval.quadrature_point(q));
         // Transport vector coefficient
-        evaluate_vector_function<dim, number>(
-            transport_function, fe_eval.quadrature_point(q));
+        transport_coefficient(cell, q) =
+            evaluate_vector_function<dim, number>(transport_function, fe_eval.quadrature_point(q));
         // Reaction scalar coefficient
         reaction_coefficient(cell, q) =
             reaction_function.value(fe_eval.quadrature_point(q));
@@ -78,8 +76,10 @@ namespace DTR_mf
     for (unsigned int cell = cell_range.first; cell < cell_range.second; ++cell)
     {
       AssertDimension(diffusion_coefficient.size(0), data.n_cell_batches());
+      AssertDimension(transport_coefficient.size(0), data.n_cell_batches());
       AssertDimension(reaction_coefficient.size(0), data.n_cell_batches());
       AssertDimension(diffusion_coefficient.size(1), fe_eval.n_q_points);
+      AssertDimension(transport_coefficient.size(1), fe_eval.n_q_points);
       AssertDimension(reaction_coefficient.size(1), fe_eval.n_q_points);
 
       fe_eval.reinit(cell);
@@ -148,19 +148,23 @@ namespace DTR_mf
     for (unsigned int cell = cell_range.first; cell < cell_range.second; ++cell)
     {
       AssertDimension(diffusion_coefficient.size(0), data.n_cell_batches());
+      AssertDimension(transport_coefficient.size(0), data.n_cell_batches());
+      AssertDimension(reaction_coefficient.size(0), data.n_cell_batches());
       AssertDimension(diffusion_coefficient.size(1), fe_eval.n_q_points);
-      AssertDimension(diffusion_coefficient.size(1), fe_eval.n_q_points);
+      AssertDimension(transport_coefficient.size(1), fe_eval.n_q_points);
       AssertDimension(reaction_coefficient.size(1), fe_eval.n_q_points);
 
       fe_eval.reinit(cell);
       for (unsigned int i = 0; i < fe_eval.dofs_per_cell; ++i)
       {
+        // Set to 1 all the dofs
         for (unsigned int j = 0; j < fe_eval.dofs_per_cell; ++j)
           fe_eval.submit_dof_value(VectorizedArray<number>(), j);
         fe_eval.submit_dof_value(make_vectorized_array<number>(1.), i);
+
         // This section is the same as in the local_apply function
         fe_eval.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
-        for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
+        for (const unsigned int q : fe_eval.quadrature_point_indices())
         {
           fe_eval.submit_gradient(diffusion_coefficient(cell, q) * fe_eval.get_gradient(q), q);
           fe_eval.submit_value(scalar_product(transport_coefficient(cell, q), fe_eval.get_gradient(q)), q);
@@ -194,7 +198,6 @@ namespace DTR_mf
         ,
         fe(degree_finite_element),
         dof_handler(triangulation),
-        mapping(),
         setup_time(0.),
         pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
         // ! remove the false for the additional output stream for timing
@@ -220,16 +223,14 @@ namespace DTR_mf
     const IndexSet locally_relevant_dofs =
         DoFTools::extract_locally_relevant_dofs(dof_handler);
 
-    // Initialize and setup Dirichlet and hanging nodes constraints add also inhomogeneous
-    // Dirichlet BC, they are not considered by read_dof_values but are needed for the lifting
+    // Initialize and setup Dirichlet and hanging nodes constraints
     constraints.clear();
     constraints.reinit(locally_relevant_dofs);
-
     DoFTools::make_hanging_node_constraints(dof_handler, constraints);
 
     // Set all Dirichlet BC to homogeneous ones
+    Functions::ZeroFunction<dim> zero_function;
     std::map<types::boundary_id, const Function<dim> *> boundary_functions;
-    Functions::ZeroFunction<dim> zero_function(dim);
     for (unsigned int i = 0; i < 4; ++i)
       if (bcs[i] == 'D' || bcs[i] == 'Z')
         boundary_functions[i] = &zero_function;
@@ -254,7 +255,7 @@ namespace DTR_mf
       additional_data.mapping_update_flags =
           (update_values | update_gradients | update_JxW_values | update_quadrature_points);
       additional_data.mapping_update_flags_boundary_faces =
-          (update_values | update_gradients | update_JxW_values | update_quadrature_points);
+          (update_JxW_values | update_quadrature_points);
 
       std::shared_ptr<MatrixFree<dim, double>> system_mf_storage(new MatrixFree<dim, double>());
 
@@ -303,16 +304,6 @@ namespace DTR_mf
       AffineConstraints<double> level_constraints;
       level_constraints.reinit(relevant_dofs);
       level_constraints.add_lines(mg_constrained_dofs.get_boundary_indices(level));
-      DoFTools::make_hanging_node_constraints(dof_handler, level_constraints);
-
-      Functions::ZeroFunction<dim> zero_function(dim);
-      for (unsigned int i = 0; i < 4; ++i)
-        if (bcs[i] == 'D' || bcs[i] == 'Z')
-          boundary_functions[i] = &zero_function;
-      VectorTools::interpolate_boundary_values(mapping,
-                                               dof_handler,
-                                               boundary_functions,
-                                               level_constraints);
       level_constraints.close();
 
       typename MatrixFree<dim, float>::AdditionalData additional_data;
@@ -321,9 +312,9 @@ namespace DTR_mf
       additional_data.mapping_update_flags =
           (update_values | update_gradients | update_JxW_values | update_quadrature_points);
       additional_data.mapping_update_flags_boundary_faces =
-          (update_values | update_gradients | update_JxW_values | update_quadrature_points);
-
+          (update_JxW_values | update_quadrature_points);
       additional_data.mg_level = level;
+
       std::shared_ptr<MatrixFree<dim, float>> mg_mf_storage_level(new MatrixFree<dim, float>());
 
       mg_mf_storage_level->reinit(mapping,
@@ -389,9 +380,9 @@ namespace DTR_mf
 
       for (const unsigned int q : fe_face_eval.quadrature_point_indices())
       {
-        if (fe_face_eval.boundary_id() == 1)
+        if (fe_face_eval.boundary_id() == 1) // if x=1
           fe_face_eval.submit_value(neumannBC1.value(fe_face_eval.quadrature_point(q)), q);
-        else if (fe_face_eval.boundary_id() == 3)
+        else if (fe_face_eval.boundary_id() == 3) // if y=1
           fe_face_eval.submit_value(neumannBC2.value(fe_face_eval.quadrature_point(q)), q);
       }
 
@@ -624,32 +615,11 @@ namespace DTR_mf
 
       if (cycle == 0)
       {
-        GridGenerator::hyper_cube(triangulation, 0., 1.);
-
-        // Assign Boundary IDs
-        for (typename Triangulation<dim>::face_iterator face = triangulation.begin_face();
-             face != triangulation.end_face();
-             ++face)
-        {
-          if (face->at_boundary())
-          {
-            // x = 0
-            if (std::abs(face->center()[0] - 0.) < 1e-10)
-              face->set_boundary_id(0);
-            // x = 1
-            else if (std::abs(face->center()[0] - 1.) < 1e-10)
-              face->set_boundary_id(1);
-            // y = 0
-            else if (std::abs(face->center()[1] - 0.) < 1e-10)
-              face->set_boundary_id(2);
-            // y = 1
-            else if (std::abs(face->center()[1] - 1.) < 1e-10)
-              face->set_boundary_id(3);
-          }
-        }
+        // Generate the cube grid with bound index assignment
+        GridGenerator::hyper_cube(triangulation, 0., 1., true);
 
         triangulation.refine_global(3 - dim);
-      } // end cycle 0
+      }
 
       triangulation.refine_global(1);
       setup_system();
@@ -658,5 +628,32 @@ namespace DTR_mf
       output_results(cycle);
       pcout << std::endl;
     };
+  }
+
+  template <int dim>
+  double LaplaceProblem<dim>::compute_error(const VectorTools::NormType &norm_type) const
+  {
+    MappingQ1<dim> mapping;
+
+    // The error is an integral, and we approximate that integral using a
+    // quadrature formula. To make sure we are accurate enough, we use a
+    // quadrature formula with one node more than what we used in assembly.
+    const QGauss<dim> quadrature_error(degree_finite_element + 2);
+
+    // First we compute the norm on each element, and store it in a vector.
+    Vector<double> error_per_cell(triangulation.n_active_cells());
+    VectorTools::integrate_difference(mapping,
+                                      dof_handler,
+                                      solution,
+                                      ExactSolution(),
+                                      error_per_cell,
+                                      quadrature_error,
+                                      norm_type);
+
+    // Then, we add out all the cells.
+    const double error =
+        VectorTools::compute_global_error(triangulation, error_per_cell, norm_type);
+
+    return error;
   }
 }
