@@ -193,7 +193,7 @@ namespace DTR_mf
   //    convergence of the geometric multigrid routines.
   // - For the distributed grid we need to specifically enable the multigrid hierarchy
   template <int dim>
-  DTRProblem<dim>::DTRProblem()
+  DTRProblem<dim>::DTRProblem(bool verbose)
 #ifdef DEAL_II_WITH_P4EST
       : triangulation(MPI_COMM_WORLD,
                       Triangulation<dim>::limit_level_difference_at_vertices,
@@ -206,7 +206,7 @@ namespace DTR_mf
         fe(degree_finite_element),
         dof_handler(triangulation),
         setup_time(0.),
-        pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
+        pcout(std::cout, verbose && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
         // ! remove the false for the additional output stream for timing
         time_details(std::cout, false && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
@@ -601,9 +601,9 @@ namespace DTR_mf
   }
 
   template <int dim>
-  void DTRProblem<dim>::run()
+  void DTRProblem<dim>::run(unsigned int n_initial_refinements)
   {
-    // Print processor vectorization details
+    // Print processor vectorization and MPI details
     {
       const unsigned int n_vect_doubles = VectorizedArray<double>::size();
       const unsigned int n_vect_bits = 8 * sizeof(double) * n_vect_doubles;
@@ -612,6 +612,10 @@ namespace DTR_mf
             << " doubles = " << n_vect_bits << " bits ("
             << Utilities::System::get_current_vectorization_level() << ')'
             << std::endl;
+      const unsigned int n_ranks = Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
+      pcout << "Running with " << n_ranks << " MPI process"
+            << (n_ranks > 1 ? "es" : "") << ", element " << fe.get_name()
+            << std::endl << std::endl;
     }
 
     for (unsigned int cycle = 0; cycle < 9 - dim; ++cycle)
@@ -623,7 +627,7 @@ namespace DTR_mf
         // Generate the cube grid with bound index assignment
         GridGenerator::hyper_cube(triangulation, 0., 1., true);
 
-        triangulation.refine_global(3 - dim);
+        triangulation.refine_global(n_initial_refinements - dim);
       }
 
       triangulation.refine_global(1);

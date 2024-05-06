@@ -23,7 +23,7 @@ The report for this project can be found here (TODO).
   ```
 - Execute the matrixfree and matrixbased versions (mpi is also supported)
   ```
-  ./matrixfree
+  ./matrixfree [solve | convergence]
   ./matrixbased
   ```
 - Output .vtu files can be found in `/build/output` folder for the matrixfree algorithm and in `/build` folder for the matrixbased one.

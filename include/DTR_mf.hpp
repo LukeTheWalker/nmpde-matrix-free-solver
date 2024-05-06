@@ -270,9 +270,21 @@ namespace DTR_mf
   class DTRProblem
   {
   public:
-    DTRProblem();
-    void run();
+    DTRProblem(bool verbose = true);
+
+    /**
+     * @brief Compute the solution of the ADR problem.
+     * It executes the setup, rhs assembly, solve, and output_results steps for the solution of the problem.
+     * The given number of initial refinements determines the number of cells in the mesh at the first step of the multigrid.
+     * The initial number of cells is dim^(initial_refinements-dim).
+     * @param n_initial_refinements the number of initial refinements to perform on the mesh.
+     */
+    void run(unsigned int n_initial_refinements = 3);
     double compute_error(const VectorTools::NormType &norm_type) const;
+
+    unsigned int get_cells() const { return triangulation.n_active_cells(); }
+    unsigned int get_dofs() const { return dof_handler.n_dofs(); }
+    unsigned int get_fe_degree() const { return degree_finite_element; }
 
   private:
     void setup_system();

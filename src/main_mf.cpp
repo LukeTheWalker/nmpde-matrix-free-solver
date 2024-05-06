@@ -1,23 +1,32 @@
 #include "DTR_mf.hpp"
+#include <deal.II/base/convergence_table.h>
+
+using namespace dealii;
+using namespace DTR_mf;
+
+void solve_problem();
+void convergence_study();
 
 int main(int argc, char *argv[])
 {
-
   try
   {
-    using namespace DTR_mf;
-
     Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
-    DTRProblem<dimension> laplace_problem;
-    laplace_problem.run();
-
-    const double error_L2 = laplace_problem.compute_error(VectorTools::L2_norm);
-    const double error_H1 = laplace_problem.compute_error(VectorTools::H1_norm);
-
-    std::cout << "L2 error: " << error_L2 << std::endl;
-    std::cout << "H1 error: " << error_H1 << std::endl;
-
+    if (argc < 2)
+    {
+      std::cerr << "Usage: " << argv[0] << " [ solve | convergence ]" << std::endl;
+      return 1;
+    }
+    if (std::string(argv[1]) == "solve")
+      solve_problem();
+    else if (std::string(argv[1]) == "convergence")
+      convergence_study();
+    else
+    {
+      std::cerr << "Usage: " << argv[0] << " [ solve | convergence ]" << std::endl;
+      return 1;
+    }
   }
   catch (std::exception &exc)
   {
@@ -46,4 +55,78 @@ int main(int argc, char *argv[])
   }
 
   return 0;
+}
+
+/**
+ * @brief Solve the ADR problem.
+ * It prints all the verbose information to the standard output, including timings, solver information, and errors.
+ */
+void solve_problem()
+{
+  DTRProblem<dimension> problem;
+  problem.run();
+
+  const double error_L2 = problem.compute_error(VectorTools::L2_norm);
+  const double error_H1 = problem.compute_error(VectorTools::H1_norm);
+
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    std::cout << "L2 error: " << error_L2 << std::endl;
+    std::cout << "H1 error: " << error_H1 << std::endl;
+  }
+}
+
+/**
+ * @brief Execute a convergence study for the ADR problem, extracting the L2 and H1 errors and the convergence rates.
+ * It writes the convergence table both to the ./output/convergence_mf.csv file and to the standard output.
+ */
+void convergence_study()
+{
+  ConvergenceTable table;
+  std::ofstream convergence_file;
+
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    convergence_file.open("./output/convergence_mf.csv");
+    convergence_file << "cells,eL2,eH1" << std::endl;
+  }
+
+  for (unsigned int refinements = 2; refinements < 7; ++refinements)
+  {
+    if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      std::cout << "Starting with " << refinements << " initial refinements...\n";
+
+    DTRProblem<dimension> problem(false);
+    problem.run(refinements);
+
+    const double error_L2 = problem.compute_error(VectorTools::L2_norm);
+    const double error_H1 = problem.compute_error(VectorTools::H1_norm);
+
+    table.add_value("cells", problem.get_cells());
+    table.add_value("L2", error_L2);
+    table.add_value("H1", error_H1);
+
+    if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+    {
+      convergence_file << problem.get_cells() << "," << error_L2 << "," << error_H1 << std::endl;
+      std::cout << "\tFE degree:       " << problem.get_fe_degree() << std::endl;
+      std::cout << "\tNumber of cells: " << problem.get_cells() << std::endl;
+      std::cout << "\tNumber of dofs:  " << problem.get_dofs() << std::endl;
+      std::cout << "\tL2 error:        " << error_L2 << std::endl;
+      std::cout << "\tH1 error:        " << error_H1 << std::endl;
+    }
+  }
+
+  table.evaluate_all_convergence_rates(ConvergenceTable::reduction_rate_log2);
+
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    table.set_scientific("L2", true);
+    table.set_scientific("H1", true);
+    table.set_precision("h", 6);
+    table.set_precision("L2", 6);
+    table.set_precision("H1", 6);
+    table.write_text(std::cout);
+    convergence_file.close();
+  }
 }
