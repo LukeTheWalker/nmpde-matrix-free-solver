@@ -90,6 +90,13 @@ namespace DTR_mf
       else
         return 1.;
     }
+
+    template <typename number>
+    void tensor_value(const Point<dim, number> &/*p*/, Tensor<1, dim, number> &values) const
+    {
+      values[0] = 1.;
+      values[1] = 1.;
+    }
   };
 
   template <int dim>
@@ -195,7 +202,7 @@ namespace DTR_mf
 
   // The following class implements the DTR linear operation that is needed at each
   // iteration of the linear solver. The fe_degree template argument is provided to the
-  // FEEvaluation class that needs it for efficiency.
+  // FEEvaluation class that needs it for efficiency
   template <int dim, int fe_degree, typename number>
   class DTROperation
       : public MatrixFreeOperators::
@@ -258,14 +265,12 @@ namespace DTR_mf
     Table<2, VectorizedArray<number>> forcing_term_coefficient;
   };
 
-  // This class is based on the one in step-16. However, we replaced the
-  // SparseMatrix<double> class by our matrix-free implementation, which means
-  // that we can also skip the sparsity patterns.
+
   template <int dim>
-  class LaplaceProblem
+  class DTRProblem
   {
   public:
-    LaplaceProblem();
+    DTRProblem();
     void run();
     double compute_error(const VectorTools::NormType &norm_type) const;
 
@@ -308,30 +313,6 @@ namespace DTR_mf
     NeumannBC1 neumannBC1;
     NeumannBC2 neumannBC2;
   };
-
-  // Helper function to evaluate a vectorial function at a VectorizedArray of points.
-  template <int dim, typename number>
-  Tensor<1, dim, VectorizedArray<number>>
-  evaluate_vector_function(const Function<dim> &function, const Point<dim, VectorizedArray<number>> &p_vectorized)
-  {
-    TransportCoefficient<dim> transport_function; // TODO: remove this
-
-    Tensor<1, dim, VectorizedArray<number>> result;
-    for (unsigned int v = 0; v < VectorizedArray<number>::size(); ++v)
-    {
-      // Extract point p from p_vectorized
-      Point<dim, number> p;
-      for (unsigned int d = 0; d < dim; ++d)
-        p[d] = p_vectorized[d][v];
-      // Evaluate vectorial function in p
-      Vector<number> single_result(dim);
-      transport_function.vector_value(p, single_result);
-      // Write to tensor
-      for (unsigned int d = 0; d < dim; ++d)
-        result[d][v] = single_result[d];
-    }
-    return result;
-  }
 }
 
 #include "DTR_mf.cpp"

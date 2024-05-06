@@ -2,8 +2,7 @@
 
 const char bcs[4] = {'Z', 'N', 'Z', 'N'};
 
-void
-DTR::setup()
+void DTR::setup()
 {
   std::cout << "===============================================" << std::endl;
 
@@ -46,7 +45,6 @@ DTR::setup()
 
     std::cout << "  Quadrature points per boundary cell = "
               << quadrature_boundary->size() << std::endl;
-
   }
 
   std::cout << "-----------------------------------------------" << std::endl;
@@ -95,8 +93,7 @@ DTR::setup()
   }
 }
 
-void
-DTR::assemble()
+void DTR::assemble()
 {
   std::cout << "===============================================" << std::endl;
 
@@ -112,17 +109,16 @@ DTR::assemble()
   // derivatives, the reference-to-current element mapping and its
   // derivatives on all quadrature points of all elements.
   FEValues<dim> fe_values(
-    *fe,
-    *quadrature,
-    // Here we specify what quantities we need FEValues to compute on
-    // quadrature points. For our test, we need:
-    // - the values of shape functions (update_values);
-    // - the derivative of shape functions (update_gradients);
-    // - the position of quadrature points (update_quadrature_points);
-    // - the product J_c(x_q)*w_q (update_JxW_values).
-    update_values | update_gradients | update_quadrature_points |
-      update_JxW_values);
-
+      *fe,
+      *quadrature,
+      // Here we specify what quantities we need FEValues to compute on
+      // quadrature points. For our test, we need:
+      // - the values of shape functions (update_values);
+      // - the derivative of shape functions (update_gradients);
+      // - the position of quadrature points (update_quadrature_points);
+      // - the product J_c(x_q)*w_q (update_JxW_values).
+      update_values | update_gradients | update_quadrature_points |
+          update_JxW_values);
 
   // Since we need to compute integrals on the boundary for Neumann conditions,
   // we also need a FEValues object to compute quantities on boundary edges
@@ -130,13 +126,13 @@ DTR::assemble()
   FEFaceValues<dim> fe_values_boundary(*fe,
                                        *quadrature_boundary,
                                        update_values |
-                                         update_quadrature_points |
-                                         update_JxW_values);
+                                           update_quadrature_points |
+                                           update_JxW_values);
 
   // Local matrix and right-hand side vector. We will overwrite them for
   // each element within the loop.
   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
-  Vector<double>     cell_rhs(dofs_per_cell);
+  Vector<double> cell_rhs(dofs_per_cell);
 
   // We will use this vector to store the global indices of the DoFs of the
   // current element within the loop.
@@ -144,113 +140,113 @@ DTR::assemble()
 
   // Reset the global matrix and vector, just in case.
   system_matrix = 0.0;
-  system_rhs    = 0.0;
+  system_rhs = 0.0;
 
   for (const auto &cell : dof_handler.active_cell_iterators())
+  {
+    // Reinitialize the FEValues object on current element. This
+    // precomputes all the quantities we requested when constructing
+    // FEValues (see the update_* flags above) for all quadrature nodes of
+    // the current cell.
+    fe_values.reinit(cell);
+
+    // We reset the cell matrix and vector (discarding any leftovers from
+    // previous element).
+    cell_matrix = 0.0;
+    cell_rhs = 0.0;
+
+    for (unsigned int q = 0; q < n_q; ++q)
     {
-      // Reinitialize the FEValues object on current element. This
-      // precomputes all the quantities we requested when constructing
-      // FEValues (see the update_* flags above) for all quadrature nodes of
-      // the current cell.
-      fe_values.reinit(cell);
+      // Here we assemble the local contribution for current cell and
+      // current quadrature point, filling the local matrix and vector.
 
-      // We reset the cell matrix and vector (discarding any leftovers from
-      // previous element).
-      cell_matrix = 0.0;
-      cell_rhs    = 0.0;
+      // Here we iterate over *local* DoF indices.
 
-      for (unsigned int q = 0; q < n_q; ++q)
+      Vector<double> b_loc(dim);
+
+      transport_coefficient.vector_value(fe_values.quadrature_point(q), b_loc);
+
+      Tensor<1, dim> b_loc_tensor;
+      for (unsigned int i = 0; i < dim; ++i)
+        b_loc_tensor[i] = b_loc[i];
+
+      for (unsigned int i = 0; i < dofs_per_cell; ++i)
+      {
+        for (unsigned int j = 0; j < dofs_per_cell; ++j)
         {
-          // Here we assemble the local contribution for current cell and
-          // current quadrature point, filling the local matrix and vector.
+          // Diffusion term.
+          cell_matrix(i, j) += diffusion_coefficient.value(
+                                   fe_values.quadrature_point(q)) // mu(x)
+                               * fe_values.shape_grad(i, q)       // (I)
+                               * fe_values.shape_grad(j, q)       // (II)
+                               * fe_values.JxW(q);                // (III)
 
-          // Here we iterate over *local* DoF indices.
-
-          Vector<double> b_loc(dim);
-
-          transport_coefficient.vector_value(fe_values.quadrature_point(q), b_loc);
-
-          Tensor<1, dim> b_loc_tensor;
-          for (unsigned int i = 0; i < dim; ++i)
-            b_loc_tensor[i] = b_loc[i];
-
-          for (unsigned int i = 0; i < dofs_per_cell; ++i)
-            {
-              for (unsigned int j = 0; j < dofs_per_cell; ++j)
-                {
-                  // Diffusion term.
-                  cell_matrix(i, j) += diffusion_coefficient.value(
-                                         fe_values.quadrature_point(q)) // mu(x)
-                                       * fe_values.shape_grad(i, q)     // (I)
-                                       * fe_values.shape_grad(j, q)     // (II)
-                                       * fe_values.JxW(q);              // (III)
-                                       
-                  // Transport term.
-                  cell_matrix(i, j) += scalar_product(b_loc_tensor,       // b(x)
-                                         fe_values.shape_grad(j, q))     // (I)
-                                       * fe_values.shape_value(i, q)     // (II)
-                                       * fe_values.JxW(q);               // (III)
-                  // Diffusion term.
-                  cell_matrix(i, j) += reaction_coefficient.value(
-                                        fe_values.quadrature_point(q))    // sigma(x)
-                                      * fe_values.shape_value(i, q)       // phi_i
-                                      * fe_values.shape_value(j, q)       // phi_j
-                                      * fe_values.JxW(q);                 // dx
-                }
-
-              cell_rhs(i) += forcing_term.value(fe_values.quadrature_point(q)) *
-                             fe_values.shape_value(i, q) * fe_values.JxW(q);
-            }
+          // Transport term.
+          cell_matrix(i, j) += scalar_product(b_loc_tensor,               // b(x)
+                                              fe_values.shape_grad(j, q)) // (I)
+                               * fe_values.shape_value(i, q)              // (II)
+                               * fe_values.JxW(q);                        // (III)
+          // Diffusion term.
+          cell_matrix(i, j) += reaction_coefficient.value(
+                                   fe_values.quadrature_point(q)) // sigma(x)
+                               * fe_values.shape_value(i, q)      // phi_i
+                               * fe_values.shape_value(j, q)      // phi_j
+                               * fe_values.JxW(q);                // dx
         }
 
-       // If the cell is adjacent to the boundary...
-      if (cell->at_boundary())
-        {
-          // ...we loop over its edges (referred to as faces in the deal.II
-          // jargon).
-          for (unsigned int face_number = 0; face_number < cell->n_faces();
-               ++face_number)
-            {
-              // If current face lies on the boundary, and its boundary ID (or
-              // tag) is that of one of the Neumann boundaries, we assemble the
-              // boundary integral.
-              if (cell->face(face_number)->at_boundary() &&
-                  bcs[cell->face(face_number)->boundary_id()] == 'N')
-
-                {
-                  fe_values_boundary.reinit(cell, face_number);
-
-                  for (unsigned int q = 0; q < quadrature_boundary->size(); ++q)
-                    for (unsigned int i = 0; i < dofs_per_cell; ++i)
-                      if (cell->face(face_number)->boundary_id() == 1){
-                        cell_rhs(i) +=
-                          neumannBC1.value(
-                            fe_values_boundary.quadrature_point(q)) * // h(xq)
-                          fe_values_boundary.shape_value(i, q) *      // v(xq)
-                          fe_values_boundary.JxW(q);                  // Jq wq
-                      }
-                      else if (cell->face(face_number)->boundary_id() == 3){
-                        cell_rhs(i) +=
-                          neumannBC2.value(
-                            fe_values_boundary.quadrature_point(q)) * // h(xq)
-                          fe_values_boundary.shape_value(i, q) *      // v(xq)
-                          fe_values_boundary.JxW(q);                  // Jq wq
-                      }
-                }
-            }
-        }
-
-      // At this point the local matrix and vector are constructed: we
-      // need to sum them into the global matrix and vector. To this end,
-      // we need to retrieve the global indices of the DoFs of current
-      // cell.
-      cell->get_dof_indices(dof_indices);
-
-      // Then, we add the local matrix and vector into the corresponding
-      // positions of the global matrix and vector.
-      system_matrix.add(dof_indices, cell_matrix);
-      system_rhs.add(dof_indices, cell_rhs);
+        cell_rhs(i) += forcing_term.value(fe_values.quadrature_point(q)) *
+                       fe_values.shape_value(i, q) * fe_values.JxW(q);
+      }
     }
+
+    // If the cell is adjacent to the boundary...
+    if (cell->at_boundary())
+      {
+        // ...we loop over its edges (referred to as faces in the deal.II
+        // jargon).
+        for (unsigned int face_number = 0; face_number < cell->n_faces();
+             ++face_number)
+          {
+            // If current face lies on the boundary, and its boundary ID (or
+            // tag) is that of one of the Neumann boundaries, we assemble the
+            // boundary integral.
+            if (cell->face(face_number)->at_boundary() &&
+                bcs[cell->face(face_number)->boundary_id()] == 'N')
+
+              {
+                fe_values_boundary.reinit(cell, face_number);
+
+                for (unsigned int q = 0; q < quadrature_boundary->size(); ++q)
+                  for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                    if (cell->face(face_number)->boundary_id() == 1){
+                      cell_rhs(i) +=
+                        neumannBC1.value(
+                          fe_values_boundary.quadrature_point(q)) * // h(xq)
+                        fe_values_boundary.shape_value(i, q) *      // v(xq)
+                        fe_values_boundary.JxW(q);                  // Jq wq
+                    }
+                    else if (cell->face(face_number)->boundary_id() == 3){
+                      cell_rhs(i) +=
+                        neumannBC2.value(
+                          fe_values_boundary.quadrature_point(q)) * // h(xq)
+                        fe_values_boundary.shape_value(i, q) *      // v(xq)
+                        fe_values_boundary.JxW(q);                  // Jq wq
+                    }
+              }
+          }
+      }
+
+    // At this point the local matrix and vector are constructed: we
+    // need to sum them into the global matrix and vector. To this end,
+    // we need to retrieve the global indices of the DoFs of current
+    // cell.
+    cell->get_dof_indices(dof_indices);
+
+    // Then, we add the local matrix and vector into the corresponding
+    // positions of the global matrix and vector.
+    system_matrix.add(dof_indices, cell_matrix);
+    system_rhs.add(dof_indices, cell_rhs);
+  }
 
   // Boundary conditions.
   {
@@ -264,10 +260,9 @@ DTR::assemble()
 
     std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
-
     for (unsigned int i = 0; i < 4; ++i)
       if (bcs[i] == 'D')
-          boundary_functions[i] = &dirichletBC;
+        boundary_functions[i] = &dirichletBC;
     VectorTools::interpolate_boundary_values(dof_handler,
                                              boundary_functions,
                                              boundary_values);
@@ -276,7 +271,7 @@ DTR::assemble()
     Functions::ZeroFunction<dim> zero_function(dim + 1);
     for (unsigned int i = 0; i < 4; ++i)
       if (bcs[i] == 'Z')
-          boundary_functions[i] = &zero_function;
+        boundary_functions[i] = &zero_function;
     VectorTools::interpolate_boundary_values(dof_handler,
                                              boundary_functions,
                                              boundary_values);
@@ -284,12 +279,11 @@ DTR::assemble()
     // conditions. This replaces the equations for the boundary DoFs with
     // the corresponding u_i = 0 equations.
     MatrixTools::apply_boundary_values(
-      boundary_values, system_matrix, solution, system_rhs, true);
+        boundary_values, system_matrix, solution, system_rhs, true);
   }
 }
 
-void
-DTR::solve()
+void DTR::solve()
 {
   std::cout << "===============================================" << std::endl;
 
@@ -305,9 +299,9 @@ DTR::solve()
   // PreconditionJacobi preconditioner;
   // preconditioner.initialize(system_matrix);
 
-//   PreconditionSOR preconditioner;
-//   preconditioner.initialize(
-//     system_matrix, PreconditionSOR<SparseMatrix<double>>::AdditionalData(1.0));
+  // PreconditionSOR preconditioner;
+  // preconditioner.initialize(
+  //     system_matrix, PreconditionSOR<SparseMatrix<double>>::AdditionalData(1.0));
 
   PreconditionSSOR preconditioner;
   preconditioner.initialize(
@@ -320,8 +314,7 @@ DTR::solve()
             << std::endl;
 }
 
-void
-DTR::output() const
+void DTR::output() const
 {
   std::cout << "===============================================" << std::endl;
 
@@ -340,8 +333,8 @@ DTR::output() const
   // Then, use one of the many write_* methods to write the file in an
   // appropriate format.
   const std::filesystem::path mesh_path(mesh_file_name);
-  const std::string           output_file_name =
-    "output-" + mesh_path.stem().string() + ".vtk";
+  const std::string output_file_name =
+      "output-" + mesh_path.stem().string() + ".vtk";
   std::ofstream output_file(output_file_name);
   data_out.write_vtk(output_file);
 
@@ -354,7 +347,7 @@ double
 DTR::compute_error(const VectorTools::NormType &norm_type) const
 {
   FE_SimplexP<dim> fe_linear(1);
-  MappingFE        mapping(fe_linear);
+  MappingFE mapping(fe_linear);
 
   // The error is an integral, and we approximate that integral using a
   // quadrature formula. To make sure we are accurate enough, we use a
@@ -373,7 +366,7 @@ DTR::compute_error(const VectorTools::NormType &norm_type) const
 
   // Then, we add out all the cells.
   const double error =
-    VectorTools::compute_global_error(mesh, error_per_cell, norm_type);
+      VectorTools::compute_global_error(mesh, error_per_cell, norm_type);
 
   return error;
 }

@@ -9,8 +9,7 @@ namespace DTR_mf
   // e.g. in a preconditioner.
   template <int dim, int fe_degree, typename number>
   DTROperation<dim, fe_degree, number>::DTROperation()
-      : MatrixFreeOperators::Base<dim,
-                                  LinearAlgebra::distributed::Vector<number>>()
+      : MatrixFreeOperators::Base<dim, LinearAlgebra::distributed::Vector<number>>()
   {
   }
 
@@ -21,8 +20,7 @@ namespace DTR_mf
     transport_coefficient.reinit(0, 0);
     reaction_coefficient.reinit(0, 0);
     forcing_term_coefficient.reinit(0, 0);
-    MatrixFreeOperators::Base<dim, LinearAlgebra::distributed::Vector<number>>::
-        clear();
+    MatrixFreeOperators::Base<dim, LinearAlgebra::distributed::Vector<number>>::clear();
   }
 
   template <int dim, int fe_degree, typename number>
@@ -49,8 +47,8 @@ namespace DTR_mf
         diffusion_coefficient(cell, q) =
             diffusion_function.value(fe_eval.quadrature_point(q));
         // Transport vector coefficient
-        transport_coefficient(cell, q) =
-            evaluate_vector_function<dim, number>(transport_function, fe_eval.quadrature_point(q));
+        transport_function.tensor_value(fe_eval.quadrature_point(q),
+                                        transport_coefficient(cell, q));
         // Reaction scalar coefficient
         reaction_coefficient(cell, q) =
             reaction_function.value(fe_eval.quadrature_point(q));
@@ -83,17 +81,20 @@ namespace DTR_mf
       AssertDimension(reaction_coefficient.size(1), fe_eval.n_q_points);
 
       fe_eval.reinit(cell);
-      fe_eval.read_dof_values(src);
-
-      fe_eval.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
+      fe_eval.gather_evaluate(src, EvaluationFlags::values | EvaluationFlags::gradients);
       for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
       {
-        fe_eval.submit_gradient(diffusion_coefficient(cell, q) * fe_eval.get_gradient(q), q);
-        fe_eval.submit_value(scalar_product(transport_coefficient(cell, q), fe_eval.get_gradient(q)), q);
-        fe_eval.submit_value(reaction_coefficient(cell, q) * fe_eval.get_value(q), q);
+        // Get the gradient of the FE function at quadrature point q since it will be overwritten
+        auto grad = fe_eval.get_gradient(q);
+        // Compute the transport and reaction terms
+        auto transport_value = scalar_product(transport_coefficient(cell, q), grad);
+        auto reaction_value = reaction_coefficient(cell, q) * fe_eval.get_value(q);
+        // Submit the term that will be tested by all basis function gradients on the current cell and integrated over
+        fe_eval.submit_gradient(diffusion_coefficient(cell, q) * grad, q);
+        // Submit the term that will be tested by all basis function values on the current cell and integrated over
+        fe_eval.submit_value(transport_value + reaction_value, q);
       }
-      fe_eval.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
-      fe_eval.distribute_local_to_global(dst);
+      fe_eval.integrate_scatter(EvaluationFlags::values | EvaluationFlags::gradients, dst);
     }
   }
 
@@ -166,12 +167,18 @@ namespace DTR_mf
         fe_eval.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
         for (const unsigned int q : fe_eval.quadrature_point_indices())
         {
-          fe_eval.submit_gradient(diffusion_coefficient(cell, q) * fe_eval.get_gradient(q), q);
-          fe_eval.submit_value(scalar_product(transport_coefficient(cell, q), fe_eval.get_gradient(q)), q);
-          fe_eval.submit_value(reaction_coefficient(cell, q) * fe_eval.get_value(q), q);
+          // Get the gradient of the FE function at quadrature point q since it will be overwritten
+          auto grad = fe_eval.get_gradient(q);
+          // Compute the transport and reaction terms
+          auto transport_value = scalar_product(transport_coefficient(cell, q), grad);
+          auto reaction_value = reaction_coefficient(cell, q) * fe_eval.get_value(q);
+          // Submit the term that will be tested by all basis function gradients on the current cell and integrated over
+          fe_eval.submit_gradient(diffusion_coefficient(cell, q) * grad, q);
+          // Submit the term that will be tested by all basis function values on the current cell and integrated over
+          fe_eval.submit_value(transport_value + reaction_value, q);
         }
         fe_eval.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
-        // end of the section
+        // -- end of the same section
         diagonal[i] = fe_eval.get_dof_value(i);
       }
       for (unsigned int i = 0; i < fe_eval.dofs_per_cell; ++i)
@@ -186,7 +193,7 @@ namespace DTR_mf
   //    convergence of the geometric multigrid routines.
   // - For the distributed grid we need to specifically enable the multigrid hierarchy
   template <int dim>
-  LaplaceProblem<dim>::LaplaceProblem()
+  DTRProblem<dim>::DTRProblem()
 #ifdef DEAL_II_WITH_P4EST
       : triangulation(MPI_COMM_WORLD,
                       Triangulation<dim>::limit_level_difference_at_vertices,
@@ -206,7 +213,7 @@ namespace DTR_mf
   }
 
   template <int dim>
-  void LaplaceProblem<dim>::setup_system()
+  void DTRProblem<dim>::setup_system()
   {
     Timer time;
     setup_time = 0;
@@ -217,7 +224,10 @@ namespace DTR_mf
     dof_handler.distribute_dofs(fe);
     dof_handler.distribute_mg_dofs();
 
-    pcout << "Number of degrees of freedom: " << dof_handler.n_dofs() << std::endl;
+    pcout << "Finite element degree:        " << fe.degree << std::endl;
+    pcout << "Number of cells:              " << triangulation.n_active_cells() << std::endl;
+    pcout << "Number of DoFs per cell:      " << fe.dofs_per_cell << std::endl;
+    pcout << "Number of DoFs:               " << dof_handler.n_dofs() << std::endl;
 
     // Consider only locally relevant dofs otherwise memory will explode
     const IndexSet locally_relevant_dofs =
@@ -255,7 +265,7 @@ namespace DTR_mf
       additional_data.mapping_update_flags =
           (update_values | update_gradients | update_JxW_values | update_quadrature_points);
       additional_data.mapping_update_flags_boundary_faces =
-          (update_JxW_values | update_quadrature_points);
+          (update_values | update_gradients | update_JxW_values | update_quadrature_points);
 
       std::shared_ptr<MatrixFree<dim, double>> system_mf_storage(new MatrixFree<dim, double>());
 
@@ -265,6 +275,9 @@ namespace DTR_mf
                                 QGauss<1>(fe.degree + 1),
                                 additional_data);
       system_matrix.initialize(system_mf_storage);
+
+      pcout << "Quadrature points per face    " << system_mf_storage->get_n_q_points_face() << std::endl;
+      pcout << "Quadrature points per cell    " << system_mf_storage->get_n_q_points() << std::endl;
     }
 
     // Evaluate the coefficients on each cell and dof, save them in Tables
@@ -339,7 +352,7 @@ namespace DTR_mf
 
   // Assemble rhs and handle the inhomogeneous Dirichlet constraints
   template <int dim>
-  void LaplaceProblem<dim>::assemble_rhs()
+  void DTRProblem<dim>::assemble_rhs()
   {
     Timer time;
 
@@ -356,14 +369,9 @@ namespace DTR_mf
       phi.reinit(cell);
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         phi.submit_value(forcing_term_coefficient(cell, q), q);
-      phi.integrate(EvaluationFlags::values);
-      phi.distribute_local_to_global(system_rhs);
+      phi.integrate_scatter(EvaluationFlags::values, system_rhs);
     }
 
-    std::cout << "n_inner_face_batches: " << system_matrix.get_matrix_free()->n_inner_face_batches() << std::endl;
-    std::cout << "n_boundary_face_batches: " << system_matrix.get_matrix_free()->n_boundary_face_batches() << std::endl;
-
-    int count = 0;
     // Loop over the boundary faces
     FEFaceEvaluation<dim, degree_finite_element> fe_face_eval(*system_matrix.get_matrix_free());
     for (unsigned int face = system_matrix.get_matrix_free()->n_inner_face_batches();
@@ -373,16 +381,11 @@ namespace DTR_mf
       fe_face_eval.reinit(face);
       fe_face_eval.read_dof_values_plain(solution);
 
-      if (fe_face_eval.boundary_id() == 1 || fe_face_eval.boundary_id() == 3)
-      {
-        count++;
-      }
-
       for (const unsigned int q : fe_face_eval.quadrature_point_indices())
       {
-        if (fe_face_eval.boundary_id() == 1) // if x=1
+        if (fe_face_eval.boundary_id() == 1)
           fe_face_eval.submit_value(neumannBC1.value(fe_face_eval.quadrature_point(q)), q);
-        else if (fe_face_eval.boundary_id() == 3) // if y=1
+        else if (fe_face_eval.boundary_id() == 3)
           fe_face_eval.submit_value(neumannBC2.value(fe_face_eval.quadrature_point(q)), q);
       }
 
@@ -390,8 +393,7 @@ namespace DTR_mf
       fe_face_eval.distribute_local_to_global(system_rhs);
     }
 
-    std::cout << "Count boundary face batches: " << count << std::endl;
-
+    // Send the contributions to the respective owner of the dof
     system_rhs.compress(VectorOperation::add);
 
     // IMPLEMENTATION FOR INHOMOGENEOUS D BC
@@ -439,15 +441,19 @@ namespace DTR_mf
 
       for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
       {
-        fe_eval.submit_gradient(-diffusion_coefficient(cell, q) * fe_eval.get_gradient(q), q);
-        fe_eval.submit_value(-scalar_product(transport_coefficient(cell, q), fe_eval.get_gradient(q)), q);
-        fe_eval.submit_value(-reaction_coefficient(cell, q) * fe_eval.get_value(q), q);
-        fe_eval.submit_value(forcing_term_coefficient(cell, q), q);
+        // Get the gradient of the FE function at quadrature point q since it will be overwritten
+          auto grad = fe_eval.get_gradient(q);
+          // Compute the transport and reaction terms
+          auto transport_value = scalar_product(transport_coefficient(cell, q), grad);
+          auto reaction_value = reaction_coefficient(cell, q) * fe_eval.get_value(q);
+          // Submit the term that will be tested by all basis function gradients on the current cell and integrated over
+          fe_eval.submit_gradient(diffusion_coefficient(cell, q) * grad, q);
+          // Submit the term that will be tested by all basis function values on the current cell and integrated over
+          fe_eval.submit_value(transport_value + reaction_value + forcing_term_coefficient(cell, q), q);
       }
 
-      fe_eval.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
-      fe_eval.distribute_local_to_global(system_rhs);
-      // no need for constraints.distribute_local_to_global since is done by the above
+      fe_eval.integrate_scatter(EvaluationFlags::values | EvaluationFlags::gradients, system_rhs);
+      // no need for constraints.distribute_local_to_global since is done by the above line
     }
 
     // Integrate over faces batches to add the contribution of Neumann BC
@@ -464,8 +470,7 @@ namespace DTR_mf
           fe_face_eval.submit_value(neumannBC2.value(fe_face_eval.quadrature_point(q)), q);
       }
 
-      fe_face_eval.integrate(EvaluationFlags::values);
-      fe_face_eval.distribute_local_to_global(system_rhs);
+      fe_face_eval.integrate_scatter(EvaluationFlags::values, system_rhs);
     }
 
     // Send the contributions to the respective owner of the dof
@@ -477,7 +482,7 @@ namespace DTR_mf
   }
 
   template <int dim>
-  void LaplaceProblem<dim>::solve()
+  void DTRProblem<dim>::solve()
   {
     Timer time;
     // Start with the setup of the transfer using MGTransferMatrixFree that does the interpolation
@@ -570,7 +575,7 @@ namespace DTR_mf
   }
 
   template <int dim>
-  void LaplaceProblem<dim>::output_results(const unsigned int cycle) const
+  void DTRProblem<dim>::output_results(const unsigned int cycle) const
   {
     Timer time;
 
@@ -596,7 +601,7 @@ namespace DTR_mf
   }
 
   template <int dim>
-  void LaplaceProblem<dim>::run()
+  void DTRProblem<dim>::run()
   {
     // Print processor vectorization details
     {
@@ -631,16 +636,16 @@ namespace DTR_mf
   }
 
   template <int dim>
-  double LaplaceProblem<dim>::compute_error(const VectorTools::NormType &norm_type) const
+  double DTRProblem<dim>::compute_error(const VectorTools::NormType &norm_type) const
   {
     MappingQ1<dim> mapping;
 
     // The error is an integral, and we approximate that integral using a
     // quadrature formula. To make sure we are accurate enough, we use a
-    // quadrature formula with one node more than what we used in assembly.
+    // quadrature formula with one node more than what we used in assembly
     const QGauss<dim> quadrature_error(degree_finite_element + 2);
 
-    // First we compute the norm on each element, and store it in a vector.
+    // First we compute the norm on each element, and store it in a vector
     Vector<double> error_per_cell(triangulation.n_active_cells());
     VectorTools::integrate_difference(mapping,
                                       dof_handler,
@@ -650,7 +655,7 @@ namespace DTR_mf
                                       quadrature_error,
                                       norm_type);
 
-    // Then, we add out all the cells.
+    // Then, we add out all the cells
     const double error =
         VectorTools::compute_global_error(triangulation, error_per_cell, norm_type);
 

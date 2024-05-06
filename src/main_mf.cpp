@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
 
     Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
-    LaplaceProblem<dimension> laplace_problem;
+    DTRProblem<dimension> laplace_problem;
     laplace_problem.run();
 
     const double error_L2 = laplace_problem.compute_error(VectorTools::L2_norm);
