@@ -4,29 +4,39 @@
 using namespace dealii;
 using namespace DTR_mf;
 
-void solve_problem();
+/**
+ * @brief Solve the ADR problem.
+ * It prints all the verbose information to the standard output, including timings, solver information, and errors.
+ * @param initial_refinements Number of initial refinements to provide to the run method. Default is 5.
+ */
+void solve_problem(unsigned int initial_refinements = 5);
+/**
+ * @brief Execute a convergence study for the ADR problem, extracting the L2 and H1 errors and the convergence rates.
+ * It writes the convergence table both to the /output/convergence_mf.csv file and to the standard output.
+ */
 void convergence_study();
 
 int main(int argc, char *argv[])
 {
   try
   {
-    Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
-    if (argc < 2)
-    {
-      std::cerr << "Usage: " << argv[0] << " [ solve | convergence ]" << std::endl;
-      return 1;
-    }
-    if (std::string(argv[1]) == "solve")
+    // Initialize the MPI environment also with multithreading
+    Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
+
+    if (argc == 2 && std::string(argv[1]) == "solve")
       solve_problem();
-    else if (std::string(argv[1]) == "convergence")
+    else if (argc == 3 && std::string(argv[1]) == "solve")
+      solve_problem(atoi(argv[2]));
+    else if (argc == 2 && std::string(argv[1]) == "convergence")
       convergence_study();
     else
     {
-      std::cerr << "Usage: " << argv[0] << " [ solve | convergence ]" << std::endl;
+      if(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+        std::cerr << "Usage: " << argv[0] << " [ solve | convergence ] [optional arguments]" << std::endl;
       return 1;
     }
+
   }
   catch (std::exception &exc)
   {
@@ -57,14 +67,10 @@ int main(int argc, char *argv[])
   return 0;
 }
 
-/**
- * @brief Solve the ADR problem.
- * It prints all the verbose information to the standard output, including timings, solver information, and errors.
- */
-void solve_problem()
+void solve_problem(unsigned int initial_refinements)
 {
   DTRProblem<dimension> problem;
-  problem.run();
+  problem.run(initial_refinements);
 
   const double error_L2 = problem.compute_error(VectorTools::L2_norm);
   const double error_H1 = problem.compute_error(VectorTools::H1_norm);
@@ -76,10 +82,6 @@ void solve_problem()
   }
 }
 
-/**
- * @brief Execute a convergence study for the ADR problem, extracting the L2 and H1 errors and the convergence rates.
- * It writes the convergence table both to the ./output/convergence_mf.csv file and to the standard output.
- */
 void convergence_study()
 {
   ConvergenceTable table;
@@ -91,10 +93,10 @@ void convergence_study()
     convergence_file << "cells,eL2,eH1" << std::endl;
   }
 
-  for (unsigned int refinements = 2; refinements < 7; ++refinements)
+  for (unsigned int refinements = 3; refinements < 7; ++refinements)
   {
     if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      std::cout << "Starting with " << refinements << " initial refinements...\n";
+      std::cout << "Starting with " << refinements - dimension << " initial refinements...\n";
 
     DTRProblem<dimension> problem(false);
     problem.run(refinements);

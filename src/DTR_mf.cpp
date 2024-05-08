@@ -615,6 +615,8 @@ namespace DTR_mf
       const unsigned int n_ranks = Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
       pcout << "Running with " << n_ranks << " MPI process"
             << (n_ranks > 1 ? "es" : "") << ", element " << fe.get_name()
+            << std::endl;
+      pcout << "Using " << Utilities::MPI::n_mpi_threads() << " threads per process"
             << std::endl << std::endl;
     }
 
@@ -626,7 +628,6 @@ namespace DTR_mf
       {
         // Generate the cube grid with bound index assignment
         GridGenerator::hyper_cube(triangulation, 0., 1., true);
-
         triangulation.refine_global(n_initial_refinements - dim);
       }
 
@@ -642,26 +643,21 @@ namespace DTR_mf
   template <int dim>
   double DTRProblem<dim>::compute_error(const VectorTools::NormType &norm_type) const
   {
-    MappingQ1<dim> mapping;
-
-    // The error is an integral, and we approximate that integral using a
-    // quadrature formula. To make sure we are accurate enough, we use a
-    // quadrature formula with one node more than what we used in assembly
-    const QGauss<dim> quadrature_error(degree_finite_element + 2);
-
-    // First we compute the norm on each element, and store it in a vector
+    solution.update_ghost_values();
+    // First we compute the norm on each element, and store it in a vector.
+    // To make sure we are accurate enough, we use a quadrature formula with one
+    // node more than what we used in assembly
     Vector<double> error_per_cell(triangulation.n_active_cells());
-    VectorTools::integrate_difference(mapping,
+    VectorTools::integrate_difference(MappingQ1<dim>(),
                                       dof_handler,
                                       solution,
                                       ExactSolution(),
                                       error_per_cell,
-                                      quadrature_error,
+                                      QGauss<dim>(fe.degree + 2),
                                       norm_type);
 
     // Then, we add out all the cells
-    const double error =
-        VectorTools::compute_global_error(triangulation, error_per_cell, norm_type);
+    const double error = std::sqrt(Utilities::MPI::sum(error_per_cell.norm_sqr(), MPI_COMM_WORLD));
 
     return error;
   }
