@@ -1,5 +1,6 @@
 #pragma once
 
+#include <deal.II/base/multithread_info.h>
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/function.h>
 #include <deal.II/base/timer.h>
@@ -41,8 +42,7 @@ namespace DTR_mf
 
   // To be efficient matrix-free implementation require knowledge of loop lengths at compile time
   const unsigned int degree_finite_element = 2;
-  const unsigned int dimension = 2;
-  const unsigned int dim = dimension;
+  const unsigned int dim = 2;
   const char bcs[4] = {'Z', 'N', 'Z', 'N'}; // left, right, bottom, top
 
   template <int dim>

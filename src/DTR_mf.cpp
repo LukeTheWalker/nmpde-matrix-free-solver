@@ -82,13 +82,13 @@ namespace DTR_mf
 
       fe_eval.reinit(cell);
       fe_eval.gather_evaluate(src, EvaluationFlags::values | EvaluationFlags::gradients);
-      for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
+      for (const unsigned int q : fe_eval.quadrature_point_indices())
       {
         // Get the gradient of the FE function at quadrature point q since it will be overwritten
-        auto grad = fe_eval.get_gradient(q);
+        Tensor<1, dim, VectorizedArray<number>> grad = fe_eval.get_gradient(q);
         // Compute the transport and reaction terms
-        auto transport_value = scalar_product(transport_coefficient(cell, q), grad);
-        auto reaction_value = reaction_coefficient(cell, q) * fe_eval.get_value(q);
+        VectorizedArray<number> transport_value = scalar_product(transport_coefficient(cell, q), grad);
+        VectorizedArray<number> reaction_value = reaction_coefficient(cell, q) * fe_eval.get_value(q);
         // Submit the term that will be tested by all basis function gradients on the current cell and integrated over
         fe_eval.submit_gradient(diffusion_coefficient(cell, q) * grad, q);
         // Submit the term that will be tested by all basis function values on the current cell and integrated over
@@ -163,22 +163,22 @@ namespace DTR_mf
           fe_eval.submit_dof_value(VectorizedArray<number>(), j);
         fe_eval.submit_dof_value(make_vectorized_array<number>(1.), i);
 
-        // This section is the same as in the local_apply function
         fe_eval.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
+        // This section is the same as in the local_apply function
         for (const unsigned int q : fe_eval.quadrature_point_indices())
         {
           // Get the gradient of the FE function at quadrature point q since it will be overwritten
-          auto grad = fe_eval.get_gradient(q);
+          Tensor<1, dim, VectorizedArray<number>> grad = fe_eval.get_gradient(q);
           // Compute the transport and reaction terms
-          auto transport_value = scalar_product(transport_coefficient(cell, q), grad);
-          auto reaction_value = reaction_coefficient(cell, q) * fe_eval.get_value(q);
+          VectorizedArray<number> transport_value = scalar_product(transport_coefficient(cell, q), grad);
+          VectorizedArray<number> reaction_value = reaction_coefficient(cell, q) * fe_eval.get_value(q);
           // Submit the term that will be tested by all basis function gradients on the current cell and integrated over
           fe_eval.submit_gradient(diffusion_coefficient(cell, q) * grad, q);
           // Submit the term that will be tested by all basis function values on the current cell and integrated over
           fe_eval.submit_value(transport_value + reaction_value, q);
         }
-        fe_eval.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
         // -- end of the same section
+        fe_eval.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
         diagonal[i] = fe_eval.get_dof_value(i);
       }
       for (unsigned int i = 0; i < fe_eval.dofs_per_cell; ++i)
@@ -259,8 +259,8 @@ namespace DTR_mf
     // Setup the matrix-free instance of the problem and store it in a shared pointer
     {
       typename MatrixFree<dim, double>::AdditionalData additional_data;
-      // ! we may use threads (here are not used)
-      additional_data.tasks_parallel_scheme = MatrixFree<dim, double>::AdditionalData::none;
+      // Enable also multithreading parallelism
+      additional_data.tasks_parallel_scheme = MatrixFree<dim, double>::AdditionalData::partition_color;
       // Define the flags for the needed storage
       additional_data.mapping_update_flags =
           (update_values | update_gradients | update_JxW_values | update_quadrature_points);
@@ -320,8 +320,8 @@ namespace DTR_mf
       level_constraints.close();
 
       typename MatrixFree<dim, float>::AdditionalData additional_data;
-      // ! we may use threads (here are not used)
-      additional_data.tasks_parallel_scheme = MatrixFree<dim, float>::AdditionalData::none;
+      // Enable also multithreading parallelism
+      additional_data.tasks_parallel_scheme = MatrixFree<dim, float>::AdditionalData::partition_color;
       additional_data.mapping_update_flags =
           (update_values | update_gradients | update_JxW_values | update_quadrature_points);
       additional_data.mapping_update_flags_boundary_faces =
@@ -360,26 +360,25 @@ namespace DTR_mf
         system_matrix.get_forcing_term_coefficient();
 
     system_rhs = 0;
-    FEEvaluation<dim, degree_finite_element> phi(*system_matrix.get_matrix_free());
+    FEEvaluation<dim, degree_finite_element> fe_eval(*system_matrix.get_matrix_free());
 
     // Loop over the cells to add the forcing term contribution
     for (unsigned int cell = 0; cell < system_matrix.get_matrix_free()->n_cell_batches();
          ++cell)
     {
-      phi.reinit(cell);
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
-        phi.submit_value(forcing_term_coefficient(cell, q), q);
-      phi.integrate_scatter(EvaluationFlags::values, system_rhs);
+      fe_eval.reinit(cell);
+      for (const unsigned int q : fe_eval.quadrature_point_indices())
+        fe_eval.submit_value(forcing_term_coefficient(cell, q), q);
+      fe_eval.integrate_scatter(EvaluationFlags::values, system_rhs);
     }
 
-    // Loop over the boundary faces
+    // Loop over the boundary faces to impose Neumann BC
     FEFaceEvaluation<dim, degree_finite_element> fe_face_eval(*system_matrix.get_matrix_free());
     for (unsigned int face = system_matrix.get_matrix_free()->n_inner_face_batches();
          face < (system_matrix.get_matrix_free()->n_inner_face_batches() + system_matrix.get_matrix_free()->n_boundary_face_batches());
          ++face)
     {
       fe_face_eval.reinit(face);
-      fe_face_eval.read_dof_values_plain(solution);
 
       for (const unsigned int q : fe_face_eval.quadrature_point_indices())
       {
@@ -389,8 +388,7 @@ namespace DTR_mf
           fe_face_eval.submit_value(neumannBC2.value(fe_face_eval.quadrature_point(q)), q);
       }
 
-      fe_face_eval.integrate(EvaluationFlags::values);
-      fe_face_eval.distribute_local_to_global(system_rhs);
+      fe_face_eval.integrate_scatter(EvaluationFlags::values, system_rhs);
     }
 
     // Send the contributions to the respective owner of the dof
@@ -603,7 +601,7 @@ namespace DTR_mf
   template <int dim>
   void DTRProblem<dim>::run(unsigned int n_initial_refinements)
   {
-    // Print processor vectorization and MPI details
+    // Print processor vectorization, MPI and multi-threading details
     {
       const unsigned int n_vect_doubles = VectorizedArray<double>::size();
       const unsigned int n_vect_bits = 8 * sizeof(double) * n_vect_doubles;
@@ -616,8 +614,9 @@ namespace DTR_mf
       pcout << "Running with " << n_ranks << " MPI process"
             << (n_ranks > 1 ? "es" : "") << ", element " << fe.get_name()
             << std::endl;
-      pcout << "Using " << Utilities::MPI::n_mpi_threads() << " threads per process"
-            << std::endl << std::endl;
+      pcout << "Using " << MultithreadInfo::n_threads() << " threads per process"
+            << std::endl
+            << std::endl;
     }
 
     for (unsigned int cycle = 0; cycle < 9 - dim; ++cycle)

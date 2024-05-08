@@ -8,6 +8,7 @@ The report for this project can be found here (TODO).
 ## Required software
 - dealii - version 9.5.1 (or newer)
 - CMake
+
 ## Compile and run
 - Clone the repository
 - Create a build directory and move into here and create an output directory
@@ -21,9 +22,15 @@ The report for this project can be found here (TODO).
   cmake ..
   make
   ```
-- Execute the matrixfree and matrixbased versions (mpi is also supported)
+- Execute the matrixfree and matrixbased versions, more details on the available tests that can be run is provided below
   ```
-  ./matrixfree [solve | convergence]
-  ./matrixbased
+  [mpirun -n XX] ./matrixfree [solve | convergence] [optional parameters]
+  [mpirun -n XX] ./matrixbased
   ```
+  The integer value `XX` is the required number of MPI processes to be spawned.
 - Output .vtu files can be found in `/build/output` folder for the matrixfree algorithm and in `/build` folder for the matrixbased one.
+
+## Available tests
+- `solve n`:
+  Solve the problem printing informations about dofs, overall CPU time, and others at each multigrid cycle. At the end it provides the L2 and H1 errors to check the correctness of the solver. The optional parameter `n` is related to the number of initial refinements to perform on the mesh before starting the first cycle (default is `n=5`). The initial refinements that are actually performed on the mesh are computed as `n-dim` where `dim` is the dimension of the space in which the problem is defined.
+- `convergence`: Execute a convergence test solving with our multigrid matrix-free solver few times the same problem halving the cell size at each iteration. It prints only few summary informations for each step, and at the end it shows the convergence table and saves into the `build/output/convergence_mf.csv` the same data.

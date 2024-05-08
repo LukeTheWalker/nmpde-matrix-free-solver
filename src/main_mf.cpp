@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 
 void solve_problem(unsigned int initial_refinements)
 {
-  DTRProblem<dimension> problem;
+  DTRProblem<dim> problem;
   problem.run(initial_refinements);
 
   const double error_L2 = problem.compute_error(VectorTools::L2_norm);
@@ -96,9 +96,9 @@ void convergence_study()
   for (unsigned int refinements = 3; refinements < 7; ++refinements)
   {
     if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      std::cout << "Starting with " << refinements - dimension << " initial refinements...\n";
+      std::cout << "Starting with " << refinements - dim << " initial refinements...\n";
 
-    DTRProblem<dimension> problem(false);
+    DTRProblem<dim> problem(false);
     problem.run(refinements);
 
     const double error_L2 = problem.compute_error(VectorTools::L2_norm);
