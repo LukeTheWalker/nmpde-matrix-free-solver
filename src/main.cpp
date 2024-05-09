@@ -8,27 +8,36 @@
 
 // standard main
 
-// // Main function.
-// int
-// main(int /*argc*/, char * /*argv*/[])
-// {
-//   const std::string  mesh_filename = "../mesh/mesh-square-h0.100000.msh";
-//   const unsigned int degree        = 1;
+// Main function.
+int
+main(int argc, char * argv[])
+{
+  //This object calls MPI_Init when it is constructed, and MPI_Finalize when it
+  //is destroyed. It also initializes several other libraries bundled with
+  //dealii (e.g. p4est, PETSc, ...).
+  Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);  
+  
+  const std::string  mesh_filename = "../mesh/mesh-square-h0.100000.msh";
+  const unsigned int degree        = 1;
 
-//   DTR problem(mesh_filename, degree);
+  DTR problem(mesh_filename, degree);
 
-//   problem.setup();
-//   problem.assemble();
-//   problem.solve();
-//   problem.output();
+  problem.setup();
+  problem.assemble();
+  problem.solve();
+  problem.output();
 
-//   return 0;
-// }
+  return 0;
+}
 
 // Main function with convergence table.
-int
-main(int /*argc*/, char * /*argv*/[])
-{
+//int
+//main(int /*argc*/, char * /*argv*/[])
+/*{
+  // This object calls MPI_Init when it is constructed, and MPI_Finalize when it
+  // is destroyed. It also initializes several other libraries bundled with
+  // dealii (e.g. p4est, PETSc, ...).
+  Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
   ConvergenceTable table;
 
   const std::vector<std::string> meshes = {"../mesh/mesh-square-h0.100000.msh",
@@ -67,4 +76,4 @@ main(int /*argc*/, char * /*argv*/[])
   table.set_scientific("H1", true);
   table.write_text(std::cout);
   return 0;
-}
+}*/

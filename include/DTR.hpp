@@ -1,7 +1,10 @@
 #ifndef DTR_HPP
 #define DTR_HPP
 
+#include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/quadrature_lib.h>
+
+#include <deal.II/distributed/fully_distributed_tria.h>
 
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_tools.h>
@@ -19,7 +22,8 @@
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_gmres.h>
-#include <deal.II/lac/sparse_matrix.h>
+#include <deal.II/lac/trilinos_precondition.h>
+#include <deal.II/lac/trilinos_sparse_matrix.h>
 #include <deal.II/lac/vector.h>
 
 #include <deal.II/numerics/data_out.h>
@@ -205,6 +209,10 @@ class NeumannBC2 : public Function<dim>
   DTR(const std::string &mesh_file_name_, const unsigned int &r_)
     : mesh_file_name(mesh_file_name_)
     , r(r_)
+    , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
+    , mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
+    , mesh(MPI_COMM_WORLD)
+    , pcout(std::cout, mpi_rank == 0)
   {}
 
   // Initialization.
@@ -234,6 +242,12 @@ protected:
   // Polynomial degree.
   const unsigned int r;
 
+  // Number of MPI processes.
+  const unsigned int mpi_size;
+
+  // This MPI process.
+  const unsigned int mpi_rank;
+
   // Diffusion coefficient.
   DiffusionCoefficient diffusion_coefficient;
 
@@ -253,9 +267,10 @@ protected:
   NeumannBC1 neumannBC1;
   NeumannBC2 neumannBC2;
 
-
-  // Triangulation.
-  Triangulation<dim> mesh;
+  // Triangulation. The parallel::fullydistributed::Triangulation class manages
+  // a triangulation that is completely distributed (i.e. each process only
+  // knows about the elements it owns and its ghost elements).
+  parallel::fullydistributed::Triangulation<dim> mesh;
 
   // Finite element space.
   // We use a unique_ptr here so that we can choose the type and degree of the
@@ -274,17 +289,21 @@ protected:
   // DoF handler.
   DoFHandler<dim> dof_handler;
 
-  // Sparsity pattern.
-  SparsityPattern sparsity_pattern;
-
   // System matrix.
-  SparseMatrix<double> system_matrix;
+  TrilinosWrappers::SparseMatrix system_matrix;
 
   // System right-hand side.
-  Vector<double> system_rhs;
+  TrilinosWrappers::MPI::Vector system_rhs;
 
   // System solution.
-  Vector<double> solution;
+  TrilinosWrappers::MPI::Vector solution;
+
+  // Parallel output stream.
+  ConditionalOStream pcout;
+
+  // DoFs owned by current process.
+  IndexSet locally_owned_dofs;
+
 };
 
 #endif

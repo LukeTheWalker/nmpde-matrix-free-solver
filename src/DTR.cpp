@@ -4,100 +4,119 @@ const char bcs[4] = {'Z', 'N', 'Z', 'N'};
 
 void DTR::setup()
 {
-  std::cout << "===============================================" << std::endl;
+  pcout << "===============================================" << std::endl;
 
   // Create the mesh.
   {
-    std::cout << "Initializing the mesh" << std::endl;
+    pcout << "Initializing the mesh" << std::endl;
 
-    // Read the mesh from file:
-    GridIn<dim> grid_in;
-    grid_in.attach_triangulation(mesh);
+    // First we read the mesh from file into a serial (i.e. not parallel)
+    // triangulation.
+    Triangulation<dim> mesh_serial;
 
-    std::ifstream mesh_file(mesh_file_name);
-    grid_in.read_msh(mesh_file);
+    {
+      GridIn<dim> grid_in;
+      grid_in.attach_triangulation(mesh_serial);
 
-    std::cout << "  Number of elements = " << mesh.n_active_cells()
-              << std::endl;
+      std::ifstream grid_in_file(mesh_file_name);
+      grid_in.read_msh(grid_in_file);
+    }
+
+    // Then, we copy the triangulation into the parallel one.
+    {
+      GridTools::partition_triangulation(mpi_size, mesh_serial);
+      const auto construction_data = TriangulationDescription::Utilities::
+        create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
+      mesh.create_triangulation(construction_data);
+    }
+
+    // Notice that we write here the number of *global* active cells (across all
+    // processes).
+    pcout << "  Number of elements = " << mesh.n_global_active_cells()
+          << std::endl;
   }
 
-  std::cout << "-----------------------------------------------" << std::endl;
+  pcout << "-----------------------------------------------" << std::endl;
 
-  // Initialize the finite element space.
+  // Initialize the finite element space. This is the same as in serial codes.
   {
-    std::cout << "Initializing the finite element space" << std::endl;
+    pcout << "Initializing the finite element space" << std::endl;
 
-    // Construct the finite element object. Notice that we use the FE_SimplexP
-    // class here, that is suitable for triangular (or tetrahedral) meshes.
     fe = std::make_unique<FE_SimplexP<dim>>(r);
 
-    std::cout << "  Degree                     = " << fe->degree << std::endl;
-    std::cout << "  DoFs per cell              = " << fe->dofs_per_cell
-              << std::endl;
+    pcout << "  Degree                     = " << fe->degree << std::endl;
+    pcout << "  DoFs per cell              = " << fe->dofs_per_cell
+          << std::endl;
 
-    // Construct the quadrature formula of the appopriate degree of exactness.
     quadrature = std::make_unique<QGaussSimplex<dim>>(r + 1);
 
-    std::cout << "  Quadrature points per cell = " << quadrature->size()
-              << std::endl;
+    pcout << "  Quadrature points per cell = " << quadrature->size()
+          << std::endl;
 
+    #ifdef NEUMANN
     quadrature_boundary = std::make_unique<QGaussSimplex<dim - 1>>(r + 1);
 
-    std::cout << "  Quadrature points per boundary cell = "
+    pcout << "  Quadrature points per boundary cell = "
               << quadrature_boundary->size() << std::endl;
+    #endif //NEUMANN
   }
 
-  std::cout << "-----------------------------------------------" << std::endl;
+  pcout << "-----------------------------------------------" << std::endl;
 
   // Initialize the DoF handler.
   {
-    std::cout << "Initializing the DoF handler" << std::endl;
+    pcout << "Initializing the DoF handler" << std::endl;
 
-    // Initialize the DoF handler with the mesh we constructed.
     dof_handler.reinit(mesh);
-
-    // "Distribute" the degrees of freedom. For a given finite element space,
-    // initializes info on the control variables (how many they are, where
-    // they are collocated, their "global indices", ...).
     dof_handler.distribute_dofs(*fe);
 
-    std::cout << "  Number of DoFs = " << dof_handler.n_dofs() << std::endl;
+    // We retrieve the set of locally owned DoFs,whose indices are global, 
+    // which will be useful when initializing linear algebra classes.
+    locally_owned_dofs = dof_handler.locally_owned_dofs();
+
+    pcout << "  Number of DoFs = " << dof_handler.n_dofs() << std::endl;
   }
 
-  std::cout << "-----------------------------------------------" << std::endl;
+  pcout << "-----------------------------------------------" << std::endl;
 
   // Initialize the linear system.
   {
-    std::cout << "Initializing the linear system" << std::endl;
+    pcout << "Initializing the linear system" << std::endl;
 
-    // We first initialize a "sparsity pattern", i.e. a data structure that
-    // indicates which entries of the matrix are zero and which are different
-    // from zero. To do so, we construct first a DynamicSparsityPattern (a
-    // sparsity pattern stored in a memory- and access-inefficient way, but
-    // fast to write) and then convert it to a SparsityPattern (which is more
-    // efficient, but cannot be modified).
-    std::cout << "  Initializing the sparsity pattern" << std::endl;
-    DynamicSparsityPattern dsp(dof_handler.n_dofs());
-    DoFTools::make_sparsity_pattern(dof_handler, dsp);
-    sparsity_pattern.copy_from(dsp);
+    pcout << "  Initializing the sparsity pattern" << std::endl;
 
-    // Then, we use the sparsity pattern to initialize the system matrix
-    std::cout << "  Initializing the system matrix" << std::endl;
-    system_matrix.reinit(sparsity_pattern);
+    // To initialize the sparsity pattern, we use Trilinos' class, that manages
+    // some of the inter-process communication.
+    TrilinosWrappers::SparsityPattern sparsity(locally_owned_dofs,
+                                               MPI_COMM_WORLD);
+    DoFTools::make_sparsity_pattern(dof_handler, sparsity);
+
+    // After initialization, we need to call compress, so that all process
+    // retrieve the information they need for the rows they own (i.e. the rows
+    // corresponding to locally owned DoFs).
+    // It handles the kind of cache that allow the writing of the computed values,
+    // that single processors couldn't write due to a lack of information (the 
+    // corresponding dofs were assigned to another processor).
+    sparsity.compress();
+
+    // Then, we use the sparsity pattern to initialize the system matrix. Since
+    // the sparsity pattern is partitioned by row, so will the matrix.
+    pcout << "  Initializing the system matrix" << std::endl;
+    system_matrix.reinit(sparsity);
 
     // Finally, we initialize the right-hand side and solution vectors.
-    std::cout << "  Initializing the system right-hand side" << std::endl;
-    system_rhs.reinit(dof_handler.n_dofs());
-    std::cout << "  Initializing the solution vector" << std::endl;
-    solution.reinit(dof_handler.n_dofs());
+    pcout << "  Initializing the system right-hand side" << std::endl;
+    system_rhs.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+    pcout << "  Initializing the solution vector" << std::endl;
+    solution.reinit(locally_owned_dofs, MPI_COMM_WORLD);
   }
 }
 
 void DTR::assemble()
 {
-  std::cout << "===============================================" << std::endl;
+  pcout << "===============================================" << std::endl;
 
-  std::cout << "  Assembling the linear system" << std::endl;
+  pcout << "  Assembling the linear system" << std::endl;
 
   // Number of local DoFs for each element.
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
@@ -144,9 +163,13 @@ void DTR::assemble()
 
   for (const auto &cell : dof_handler.active_cell_iterators())
   {
-    // Reinitialize the FEValues object on current element. This
-    // precomputes all the quantities we requested when constructing
-    // FEValues (see the update_* flags above) for all quadrature nodes of
+    // If current cell is not owned locally, we skip it.
+      if (!cell->is_locally_owned())
+        continue;
+
+    // On all other cells (which are owned by current process) reinitialize the FEValues
+    // object on current element. This precomputes all the quantities we requested when 
+    // constructing FEValues (see the update_* flags above) for all quadrature nodes of
     // the current cell.
     fe_values.reinit(cell);
 
@@ -186,7 +209,7 @@ void DTR::assemble()
                                               fe_values.shape_grad(j, q)) // (I)
                                * fe_values.shape_value(i, q)              // (II)
                                * fe_values.JxW(q);                        // (III)
-          // Diffusion term.
+          // Reaction term.
           cell_matrix(i, j) += reaction_coefficient.value(
                                    fe_values.quadrature_point(q)) // sigma(x)
                                * fe_values.shape_value(i, q)      // phi_i
@@ -248,6 +271,13 @@ void DTR::assemble()
     system_rhs.add(dof_indices, cell_rhs);
   }
 
+  // Each process might have written to some rows it does not own (for instance,
+  // if it owns elements that are adjacent to elements owned by some other
+  // process). Therefore, at the end of the assembly, processes need to exchange
+  // information: the compress method allows to do this.
+  system_matrix.compress(VectorOperation::add);
+  system_rhs.compress(VectorOperation::add);
+
   // Boundary conditions.
   {
     // We construct a map that stores, for each DoF corresponding to a
@@ -263,6 +293,7 @@ void DTR::assemble()
     for (unsigned int i = 0; i < 4; ++i)
       if (bcs[i] == 'D')
         boundary_functions[i] = &dirichletBC;
+
     VectorTools::interpolate_boundary_values(dof_handler,
                                              boundary_functions,
                                              boundary_values);
@@ -272,6 +303,7 @@ void DTR::assemble()
     for (unsigned int i = 0; i < 4; ++i)
       if (bcs[i] == 'Z')
         boundary_functions[i] = &zero_function;
+
     VectorTools::interpolate_boundary_values(dof_handler,
                                              boundary_functions,
                                              boundary_values);
@@ -285,62 +317,72 @@ void DTR::assemble()
 
 void DTR::solve()
 {
-  std::cout << "===============================================" << std::endl;
+  pcout << "===============================================" << std::endl;
 
   // Here we specify the maximum number of iterations of the iterative solver,
   // and its tolerance.
   SolverControl solver_control(10000, 1e-10 * system_rhs.l2_norm());
 
-  // If the preconditioner is not symmetric, we need to use the GMRES method.
-  SolverGMRES<Vector<double>> solver(solver_control);
+  // The linear solver is basically the same as in serial, in terms of
+  // interface: we only have to use appropriate classes, compatible with
+  // Trilinos linear algebra.
+  SolverCG<TrilinosWrappers::MPI::Vector> solver(solver_control);
 
-  // PreconditionIdentity preconditioner;
-
-  // PreconditionJacobi preconditioner;
-  // preconditioner.initialize(system_matrix);
-
-  // PreconditionSOR preconditioner;
-  // preconditioner.initialize(
-  //     system_matrix, PreconditionSOR<SparseMatrix<double>>::AdditionalData(1.0));
-
-  PreconditionSSOR preconditioner;
+  TrilinosWrappers::PreconditionSSOR preconditioner;
   preconditioner.initialize(
-    system_matrix,
-    PreconditionSSOR<SparseMatrix<double>>::AdditionalData(1.0));
+    system_matrix, TrilinosWrappers::PreconditionSSOR::AdditionalData(1.0));
 
-  std::cout << "  Solving the linear system" << std::endl;
+  pcout << "  Solving the linear system" << std::endl;
   solver.solve(system_matrix, solution, system_rhs, preconditioner);
-  std::cout << "  " << solver_control.last_step() << " GMRES iterations"
-            << std::endl;
+  pcout << "  " << solver_control.last_step() << " CG iterations" << std::endl;
 }
 
 void DTR::output() const
 {
-  std::cout << "===============================================" << std::endl;
+  pcout << "===============================================" << std::endl;
 
-  // The DataOut class manages writing the results to a file.
+  // Union of owned and ghost dofs
+  IndexSet locally_relevant_dofs;
+  DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
+
+  // To correctly export the solution, each process needs to know the solution
+  // DoFs it owns, and the ones corresponding to elements adjacent to the ones
+  // it owns (the locally relevant DoFs, or ghosts). We create a vector to store
+  // them.
+  TrilinosWrappers::MPI::Vector solution_ghost(locally_owned_dofs,
+                                               locally_relevant_dofs,
+                                               MPI_COMM_WORLD);
+
+  // This performs the necessary communication so that the locally relevant DoFs
+  // are received from other processes and stored inside solution_ghost.
+  solution_ghost = solution;
+
+  // Then, we build and fill the DataOut class as usual.
   DataOut<dim> data_out;
+  data_out.add_data_vector(dof_handler, solution_ghost, "solution");
 
-  // It can write multiple variables (defined on the same mesh) to a single
-  // file. Each of them can be added by calling add_data_vector, passing the
-  // associated DoFHandler and a name.
-  data_out.add_data_vector(dof_handler, solution, "solution");
+  // We also add a vector to represent the parallel partitioning of the mesh.
+  std::vector<unsigned int> partition_int(mesh.n_active_cells());
+  GridTools::get_subdomain_association(mesh, partition_int);
+  const Vector<double> partitioning(partition_int.begin(), partition_int.end());
+  data_out.add_data_vector(partitioning, "partitioning");
 
-  // Once all vectors have been inserted, call build_patches to finalize the
-  // DataOut object, preparing it for writing to file.
   data_out.build_patches();
 
-  // Then, use one of the many write_* methods to write the file in an
-  // appropriate format.
   const std::filesystem::path mesh_path(mesh_file_name);
-  const std::string output_file_name =
-      "output-" + mesh_path.stem().string() + ".vtk";
-  std::ofstream output_file(output_file_name);
-  data_out.write_vtk(output_file);
+  const std::string output_file_name = "output-" + mesh_path.stem().string();
 
-  std::cout << "Output written to " << output_file_name << std::endl;
+  // Finally, we need to write in a format that supports parallel output. This
+  // can be achieved in multiple ways (e.g. XDMF/H5). We choose VTU/PVTU files,
+  // because the interface is nice and it is quite robust.
+  data_out.write_vtu_with_pvtu_record("./",
+                                      output_file_name,
+                                      0,
+                                      MPI_COMM_WORLD);
 
-  std::cout << "===============================================" << std::endl;
+  pcout << "Output written to " << output_file_name << std::endl;
+
+  pcout << "===============================================" << std::endl;
 }
 
 double
