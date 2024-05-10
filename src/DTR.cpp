@@ -26,7 +26,7 @@ void DTR::setup()
     {
       GridTools::partition_triangulation(mpi_size, mesh_serial);
       const auto construction_data = TriangulationDescription::Utilities::
-        create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
+          create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
       mesh.create_triangulation(construction_data);
     }
 
@@ -56,7 +56,7 @@ void DTR::setup()
     quadrature_boundary = std::make_unique<QGaussSimplex<dim - 1>>(r + 1);
 
     pcout << "  Quadrature points per boundary cell = "
-              << quadrature_boundary->size() << std::endl;
+          << quadrature_boundary->size() << std::endl;
   }
 
   pcout << "-----------------------------------------------" << std::endl;
@@ -68,7 +68,7 @@ void DTR::setup()
     dof_handler.reinit(mesh);
     dof_handler.distribute_dofs(*fe);
 
-    // We retrieve the set of locally owned DoFs,whose indices are global, 
+    // We retrieve the set of locally owned DoFs,whose indices are global,
     // which will be useful when initializing linear algebra classes.
     locally_owned_dofs = dof_handler.locally_owned_dofs();
 
@@ -93,7 +93,7 @@ void DTR::setup()
     // retrieve the information they need for the rows they own (i.e. the rows
     // corresponding to locally owned DoFs).
     // It handles the kind of cache that allow the writing of the computed values,
-    // that single processors couldn't write due to a lack of information (the 
+    // that single processors couldn't write due to a lack of information (the
     // corresponding dofs were assigned to another processor).
     sparsity.compress();
 
@@ -135,7 +135,7 @@ void DTR::assemble()
       // - the position of quadrature points (update_quadrature_points);
       // - the product J_c(x_q)*w_q (update_JxW_values).
       update_values | update_gradients | update_quadrature_points |
-          update_JxW_values);
+      update_JxW_values);
 
   // Since we need to compute integrals on the boundary for Neumann conditions,
   // we also need a FEValues object to compute quantities on boundary edges
@@ -143,8 +143,8 @@ void DTR::assemble()
   FEFaceValues<dim> fe_values_boundary(*fe,
                                        *quadrature_boundary,
                                        update_values |
-                                           update_quadrature_points |
-                                           update_JxW_values);
+                                       update_quadrature_points |
+                                       update_JxW_values | update_normal_vectors);
 
   // Local matrix and right-hand side vector. We will overwrite them for
   // each element within the loop.
@@ -162,11 +162,11 @@ void DTR::assemble()
   for (const auto &cell : dof_handler.active_cell_iterators())
   {
     // If current cell is not owned locally, we skip it.
-      if (!cell->is_locally_owned())
-        continue;
+    if (!cell->is_locally_owned())
+      continue;
 
     // On all other cells (which are owned by current process) reinitialize the FEValues
-    // object on current element. This precomputes all the quantities we requested when 
+    // object on current element. This precomputes all the quantities we requested when
     // constructing FEValues (see the update_* flags above) for all quadrature nodes of
     // the current cell.
     fe_values.reinit(cell);
@@ -222,40 +222,65 @@ void DTR::assemble()
 
     // If the cell is adjacent to the boundary...
     if (cell->at_boundary())
+    {
+      // ...we loop over its edges (referred to as faces in the deal.II
+      // jargon).
+      for (unsigned int face_number = 0; face_number < cell->n_faces();
+           ++face_number)
       {
-        // ...we loop over its edges (referred to as faces in the deal.II
-        // jargon).
-        for (unsigned int face_number = 0; face_number < cell->n_faces();
-             ++face_number)
+        // If current face lies on the boundary, and its boundary ID (or
+        // tag) is that of one of the Neumann boundaries, we assemble the
+        // boundary integral.
+        if (cell->face(face_number)->at_boundary() &&
+            bcs[cell->face(face_number)->boundary_id()] == 'N')
+
+        {
+          fe_values_boundary.reinit(cell, face_number);
+
+          for (unsigned int q = 0; q < quadrature_boundary->size(); ++q)
           {
-            // If current face lies on the boundary, and its boundary ID (or
-            // tag) is that of one of the Neumann boundaries, we assemble the
-            // boundary integral.
-            if (cell->face(face_number)->at_boundary() &&
-                bcs[cell->face(face_number)->boundary_id()] == 'N')
+            Vector<double> b_loc(dim);
 
+            transport_coefficient.vector_value(fe_values_boundary.quadrature_point(q), b_loc);
+
+            Tensor<1, dim> b_loc_tensor;
+            for (unsigned int i = 0; i < dim; ++i)
+              b_loc_tensor[i] = b_loc[i];
+
+            for (unsigned int i = 0; i < dofs_per_cell; ++i)
+            {
+              // Assemble the boundary lhs term
+              for (unsigned int j = 0; j < dofs_per_cell; ++j)
               {
-                fe_values_boundary.reinit(cell, face_number);
-
-                for (unsigned int q = 0; q < quadrature_boundary->size(); ++q)
-                  for (unsigned int i = 0; i < dofs_per_cell; ++i)
-                    if (cell->face(face_number)->boundary_id() == 1){
-                      cell_rhs(i) +=
-                        neumannBC1.value(
-                          fe_values_boundary.quadrature_point(q)) * // h(xq)
-                        fe_values_boundary.shape_value(i, q) *      // v(xq)
-                        fe_values_boundary.JxW(q);                  // Jq wq
-                    }
-                    else if (cell->face(face_number)->boundary_id() == 3){
-                      cell_rhs(i) +=
-                        neumannBC2.value(
-                          fe_values_boundary.quadrature_point(q)) * // h(xq)
-                        fe_values_boundary.shape_value(i, q) *      // v(xq)
-                        fe_values_boundary.JxW(q);                  // Jq wq
-                    }
+                cell_matrix(i, j) += scalar_product(b_loc_tensor,               
+                              fe_values_boundary.normal_vector(q))
+                              * fe_values_boundary.shape_value(j, q)
+                              * fe_values_boundary.shape_value(i, q)
+                              * fe_values_boundary.JxW(q);
               }
+
+              // Assemble the boundary rhs term
+              if (cell->face(face_number)->boundary_id() == 1)
+              {
+                cell_rhs(i) +=
+                    neumannBC1.value(
+                        fe_values_boundary.quadrature_point(q)) * // h(xq)
+                    fe_values_boundary.shape_value(i, q) *        // v(xq)
+                    fe_values_boundary.JxW(q);                    // Jq wq
+              }
+              else if (cell->face(face_number)->boundary_id() == 3)
+              {
+                cell_rhs(i) +=
+                    neumannBC2.value(
+                        fe_values_boundary.quadrature_point(q)) * // h(xq)
+                    fe_values_boundary.shape_value(i, q) *        // v(xq)
+                    fe_values_boundary.JxW(q);                    // Jq wq
+              }
+            }
           }
+        }
       }
+    }
 
     // At this point the local matrix and vector are constructed: we
     // need to sum them into the global matrix and vector. To this end,
@@ -328,7 +353,7 @@ void DTR::solve()
 
   TrilinosWrappers::PreconditionSSOR preconditioner;
   preconditioner.initialize(
-    system_matrix, TrilinosWrappers::PreconditionSSOR::AdditionalData(1.0));
+      system_matrix, TrilinosWrappers::PreconditionSSOR::AdditionalData(1.0));
 
   pcout << "  Solving the linear system" << std::endl;
   solver.solve(system_matrix, solution, system_rhs, preconditioner);
