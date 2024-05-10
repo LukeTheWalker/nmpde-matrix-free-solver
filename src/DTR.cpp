@@ -53,12 +53,10 @@ void DTR::setup()
     pcout << "  Quadrature points per cell = " << quadrature->size()
           << std::endl;
 
-    #ifdef NEUMANN
     quadrature_boundary = std::make_unique<QGaussSimplex<dim - 1>>(r + 1);
 
     pcout << "  Quadrature points per boundary cell = "
               << quadrature_boundary->size() << std::endl;
-    #endif //NEUMANN
   }
 
   pcout << "-----------------------------------------------" << std::endl;
@@ -321,7 +319,7 @@ void DTR::solve()
 
   // Here we specify the maximum number of iterations of the iterative solver,
   // and its tolerance.
-  SolverControl solver_control(10000, 1e-10 * system_rhs.l2_norm());
+  SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
 
   // The linear solver is basically the same as in serial, in terms of
   // interface: we only have to use appropriate classes, compatible with
