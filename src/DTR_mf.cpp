@@ -31,14 +31,10 @@ namespace DTR_mf
       const ForcingTerm<dim> &forcing_term_function)
   {
     const unsigned int n_cells = this->data->n_cell_batches();
-    const unsigned int n_boundary_faces = this->data->n_boundary_face_batches();
     FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number> fe_eval(*this->data);
-    FEFaceEvaluation<dim, fe_degree, fe_degree + 1, 1, number> fe_face_eval(*this->data);
-
 
     diffusion_coefficient.reinit(n_cells, fe_eval.n_q_points);
     transport_coefficient.reinit(n_cells, fe_eval.n_q_points);
-    transport_neumann_coefficient.reinit(n_boundary_faces, fe_face_eval.n_q_points);
     reaction_coefficient.reinit(n_cells, fe_eval.n_q_points);
     forcing_term_coefficient.reinit(n_cells, fe_eval.n_q_points);
 
@@ -61,24 +57,6 @@ namespace DTR_mf
             forcing_term_function.value(fe_eval.quadrature_point(q));
       }
     }
-
-    for (unsigned int face = this->data->n_inner_face_batches();
-         face < (this->data->n_inner_face_batches() + this->data->n_boundary_face_batches());
-         ++face)
-    {
-      fe_face_eval.reinit(face);
-
-      for (const unsigned int q : fe_face_eval.quadrature_point_indices())
-      {
-        if (fe_face_eval.boundary_id() == 1 || fe_face_eval.boundary_id() == 3)
-        {
-        // Transport Neumann vector coefficient
-        transport_function.tensor_value(fe_face_eval.quadrature_point(q),
-                                        transport_neumann_coefficient(face, q)); 
-                                        //TODO: quelli non inizializzati prechè id!=1 e id!=3?  
-        }
-      }
-    }
   }
 
   // Here comes the main function of this class, the evaluation of the
@@ -92,7 +70,6 @@ namespace DTR_mf
       const std::pair<unsigned int, unsigned int> &cell_range) const
   {
     FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number> fe_eval(data);
-    FEFaceEvaluation<dim, fe_degree, fe_degree + 1, 1, number> fe_face_eval(data);
 
     for (unsigned int cell = cell_range.first; cell < cell_range.second; ++cell)
     {
@@ -118,7 +95,7 @@ namespace DTR_mf
         fe_eval.submit_value(transport_value + reaction_value, q);
       }
       fe_eval.integrate_scatter(EvaluationFlags::values | EvaluationFlags::gradients, dst);
-    }    
+    }
   }
 
   // This function implements the loop over all cells for the Base::apply_add() interface.
@@ -288,7 +265,7 @@ namespace DTR_mf
       additional_data.mapping_update_flags =
           (update_values | update_gradients | update_JxW_values | update_quadrature_points);
       additional_data.mapping_update_flags_boundary_faces =
-          (update_values | update_gradients | update_JxW_values | update_quadrature_points | update_normal_vectors);
+          (update_values | update_gradients | update_JxW_values | update_quadrature_points);
 
       std::shared_ptr<MatrixFree<dim, double>> system_mf_storage(new MatrixFree<dim, double>());
 
@@ -439,8 +416,6 @@ namespace DTR_mf
       // no need for constraints.distribute_local_to_global since is done by the above function
     }
 
-    const Table<2, Tensor<1, dim, VectorizedArray<double>>> &transport_neumann_coefficient =
-        system_matrix.get_transport_neumann_coefficient();
     // Loop over the boundary faces to impose Neumann BC
     FEFaceEvaluation<dim, degree_finite_element> fe_face_eval(*system_matrix.get_matrix_free());
     for (unsigned int face = 0; face < system_matrix.get_matrix_free()->n_boundary_face_batches(); ++face)
@@ -449,14 +424,6 @@ namespace DTR_mf
 
       for (const unsigned int q : fe_face_eval.quadrature_point_indices())
       {
-        if (fe_face_eval.boundary_id() == 1 || fe_face_eval.boundary_id() == 3)
-        {
-          fe_face_eval.submit_value(scalar_product(transport_neumann_coefficient(face,q),fe_face_eval.get_normal_vector(q)), q);
-          /*std::cout << "Normal vector: " << fe_face_eval.get_normal_vector(q) << std::endl;
-          std::cout << "Transport Neumann coefficient: " << transport_neumann_coefficient(face,q) << std::endl;
-          std::cout << "Value: " << fe_face_eval.get_value(q) << std::endl;
-          std::cout << "Result: " << scalar_product(transport_neumann_coefficient(face,q),fe_face_eval.get_normal_vector(q)) << std::endl;*/
-        }
         if (fe_face_eval.boundary_id() == 1)
           fe_face_eval.submit_value(neumannBC1.value(fe_face_eval.quadrature_point(q)), q);
         else if (fe_face_eval.boundary_id() == 3)

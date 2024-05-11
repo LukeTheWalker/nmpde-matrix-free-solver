@@ -242,11 +242,6 @@ namespace DTR_mf
       return transport_coefficient;
     }
 
-    const Table<2, Tensor<1, dim, VectorizedArray<number>>> &get_transport_neumann_coefficient() const
-    {
-      return transport_neumann_coefficient;
-    }
-
     const Table<2, VectorizedArray<number>> &get_reaction_coefficient() const
     {
       return reaction_coefficient;
@@ -276,7 +271,6 @@ namespace DTR_mf
 
     Table<2, VectorizedArray<number>> diffusion_coefficient;
     Table<2, Tensor<1, dim, VectorizedArray<number>>> transport_coefficient;
-    Table<2, Tensor<1, dim, VectorizedArray<number>>> transport_neumann_coefficient;
     Table<2, VectorizedArray<number>> reaction_coefficient;
     Table<2, VectorizedArray<number>> forcing_term_coefficient;
   };
