@@ -592,7 +592,7 @@ namespace DTR_mf
     flags.compression_level = DataOutBase::CompressionLevel::best_speed;
     data_out.set_flags(flags);
     data_out.write_vtu_with_pvtu_record(
-        "./output/", "solution", cycle, MPI_COMM_WORLD, 3);
+        "./output_mf/", "solution", cycle, MPI_COMM_WORLD, 3);
 
     time_details << "Time write output          (CPU/wall) " << time.cpu_time()
                  << "s/" << time.wall_time() << "s\n";
