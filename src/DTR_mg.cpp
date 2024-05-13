@@ -139,7 +139,7 @@ namespace DTR_mg
     std::vector<double> rhs_values(n_q_points);
 
     for (const auto &cell : dof_handler.active_cell_iterators())
-      if (!cell->is_locally_owned())
+      if (cell->is_locally_owned())
       {
         cell_matrix = 0.0;
         cell_rhs = 0.0;
@@ -320,7 +320,7 @@ namespace DTR_mg
   {
     TimerOutput::Scope timing(computing_timer, "Solve");
 
-    SolverControl solver_control(15000, 1.e-10 * right_hand_side.l2_norm());
+    SolverControl solver_control(50000, 1e-10 * right_hand_side.l2_norm());
 
     solution = 0.;
 
@@ -329,7 +329,7 @@ namespace DTR_mg
     MGTransferPrebuilt<VectorType> mg_transfer(mg_constrained_dofs);
     mg_transfer.build(dof_handler);
 
-    SolverControl coarse_solver_control(15000, 1e-12, false, false);
+    SolverControl coarse_solver_control(50000, 1e-12, false, false);
     SolverCG<VectorType> coarse_solver(coarse_solver_control);
     PreconditionIdentity identity;
     MGCoarseGridIterativeSolver<VectorType,
@@ -341,8 +341,8 @@ namespace DTR_mg
     using Smoother = LA::MPI::PreconditionJacobi;
     MGSmootherPrecondition<MatrixType, Smoother, VectorType> smoother;
 
-    smoother.initialize(mg_matrix, 1.);
-    smoother.set_steps(5);
+    smoother.initialize(mg_matrix, 15.);
+    smoother.set_steps(1);
 
     mg::Matrix<VectorType> mg_m(mg_matrix);
     mg::Matrix<VectorType> mg_in(mg_interface_in);
@@ -415,7 +415,7 @@ namespace DTR_mg
       {
         // Generate the cube grid with bound index assignment
         GridGenerator::hyper_cube(triangulation, 0., 1., true);
-        triangulation.refine_global(4 - dim);
+        triangulation.refine_global(3 - dim);
       }
 
       triangulation.refine_global(1);
