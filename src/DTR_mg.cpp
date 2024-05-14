@@ -338,7 +338,7 @@ namespace DTR_mg
                                 PreconditionIdentity>
         coarse_grid_solver(coarse_solver, mg_matrix[0], identity);
 
-    using Smoother = LA::MPI::PreconditionJacobi;
+    using Smoother = LinearAlgebraTrilinos::MPI::PreconditionJacobi;
     MGSmootherPrecondition<MatrixType, Smoother, VectorType> smoother;
 
     smoother.initialize(mg_matrix, 15.);

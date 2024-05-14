@@ -23,20 +23,6 @@
 
 #include <deal.II/lac/generic_linear_algebra.h>
 
-#define FORCE_USE_OF_TRILINOS
-namespace LA
-{
-#if defined(DEAL_II_WITH_PETSC) && !defined(DEAL_II_PETSC_WITH_COMPLEX) && \
-    !(defined(DEAL_II_WITH_TRILINOS) && defined(FORCE_USE_OF_TRILINOS))
-  using namespace dealii::LinearAlgebraPETSc;
-#define USE_PETSC_LA
-#elif defined(DEAL_II_WITH_TRILINOS)
-  using namespace dealii::LinearAlgebraTrilinos;
-#else
-#error DEAL_II_WITH_PETSC or DEAL_II_WITH_TRILINOS required
-#endif
-} // namespace LA
-
 #include <deal.II/multigrid/mg_coarse.h>
 #include <deal.II/multigrid/mg_constrained_dofs.h>
 #include <deal.II/multigrid/mg_matrix.h>
@@ -159,15 +145,13 @@ namespace DTR_mg
     void run();
 
   private:
-    using MatrixType = LA::MPI::SparseMatrix;
-    using VectorType = LA::MPI::Vector;
-    using PreconditionAMG = LA::MPI::PreconditionAMG;
+    using MatrixType = LinearAlgebraTrilinos::MPI::SparseMatrix;
+    using VectorType = LinearAlgebraTrilinos::MPI::Vector;
 
     void setup_system();
     void setup_multigrid();
     void assemble_system();
     void assemble_multigrid();
-    void assemble_rhs();
     void solve();
     void output_results(const unsigned int cycle);
 
