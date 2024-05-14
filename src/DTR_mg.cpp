@@ -11,8 +11,7 @@ namespace DTR_mg
         pcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)),
         triangulation(mpi_communicator,
                       Triangulation<dim>::limit_level_difference_at_vertices,
-                      parallel::distributed::Triangulation<
-                          dim>::construct_multigrid_hierarchy),
+                      parallel::distributed::Triangulation<dim>::construct_multigrid_hierarchy),
         mapping(), fe(degree), dof_handler(triangulation), computing_timer(pcout, TimerOutput::never, TimerOutput::wall_times)
   {
   }
@@ -338,11 +337,11 @@ namespace DTR_mg
                                 PreconditionIdentity>
         coarse_grid_solver(coarse_solver, mg_matrix[0], identity);
 
-    using Smoother = LinearAlgebraTrilinos::MPI::PreconditionJacobi;
+    using Smoother = LinearAlgebraTrilinos::MPI::PreconditionSSOR;
     MGSmootherPrecondition<MatrixType, Smoother, VectorType> smoother;
 
-    smoother.initialize(mg_matrix, 15.);
-    smoother.set_steps(1);
+    smoother.initialize(mg_matrix, 1.);
+    smoother.set_steps(3);
 
     mg::Matrix<VectorType> mg_m(mg_matrix);
     mg::Matrix<VectorType> mg_in(mg_interface_in);
