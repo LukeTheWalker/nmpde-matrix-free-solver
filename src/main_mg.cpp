@@ -1,10 +1,13 @@
 #include "DTR_mg.hpp"
 
 using namespace DTR_mg;
+using namespace dealii;
 
 int main(int argc, char *argv[])
 {
-	using namespace dealii;
+	// Create the output directory if it does not exist
+    std::filesystem::create_directory(output_dir);
+
 	Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
   const unsigned int degree = 2;

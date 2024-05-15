@@ -38,6 +38,10 @@
 #include <deal.II/fe/fe_interface_values.h>
 #include <deal.II/meshworker/mesh_loop.h>
 
+#include <filesystem>
+
+const std::string output_dir = "./output_mg/";
+
 using namespace dealii;
 
 namespace DTR_mg

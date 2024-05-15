@@ -36,6 +36,8 @@
 #include <iostream>
 #include <fstream>
 
+const std::string output_dir = "./output_mf/";
+
 namespace DTR_mf
 {
   using namespace dealii;

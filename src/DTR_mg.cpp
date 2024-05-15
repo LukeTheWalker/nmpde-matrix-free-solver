@@ -398,9 +398,9 @@ namespace DTR_mg
     data_out.build_patches();
 
     const std::string pvtu_filename = data_out.write_vtu_with_pvtu_record(
-        "./output_mg/", "solution", cycle, mpi_communicator, 2 /*n_digits*/, 1 /*n_groups*/);
+        output_dir, "solution", cycle, mpi_communicator, 2 /*n_digits*/, 1 /*n_groups*/);
 
-    pcout << "   Wrote " << pvtu_filename << std::endl;
+    pcout << "   Wrote " << pvtu_filename << " in " << output_dir << std::endl;
   }
 
   template <int dim>

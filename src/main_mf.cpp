@@ -1,5 +1,6 @@
 #include "DTR_mf.hpp"
 #include <deal.II/base/convergence_table.h>
+#include <filesystem>
 
 using namespace dealii;
 using namespace DTR_mf;
@@ -20,6 +21,8 @@ int main(int argc, char *argv[])
 {
   try
   {
+    // Create the output directory if it does not exist
+    std::filesystem::create_directory(output_dir);
 
     // Initialize the MPI environment also with multithreading
     Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
@@ -89,7 +92,7 @@ void convergence_study()
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
-    convergence_file.open(output_dir + "/convergence_mf.csv");
+    convergence_file.open(output_dir + "convergence_mf.csv");
     convergence_file << "cells,eL2,eH1" << std::endl;
   }
 

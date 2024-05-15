@@ -35,6 +35,8 @@
 #include <fstream>
 #include <iostream>
 
+static const std::string output_dir = "./output_mb/";
+
 using namespace dealii;
 
 /**

@@ -373,7 +373,7 @@ void DTR::output() const
   // Finally, we need to write in a format that supports parallel output. This
   // can be achieved in multiple ways (e.g. XDMF/H5). We choose VTU/PVTU files,
   // because the interface is nice and it is quite robust.
-  data_out.write_vtu_with_pvtu_record("./",
+  data_out.write_vtu_with_pvtu_record(output_dir,
                                       output_file_name,
                                       0,
                                       MPI_COMM_WORLD);

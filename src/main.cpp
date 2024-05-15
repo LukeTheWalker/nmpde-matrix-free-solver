@@ -12,6 +12,9 @@ int main(int argc, char * argv[])
 {
   try
   {
+    // Create the output directory if it does not exist
+    std::filesystem::create_directory(output_dir);
+
     Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
     if (argc < 2)
@@ -108,7 +111,7 @@ void convergence_study()
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
-    convergence_file.open("./output/convergence_mf.csv");
+    convergence_file.open(output_dir + "convergence_mf.csv");
     convergence_file << "h,eL2,eH1" << std::endl;
   }
 
