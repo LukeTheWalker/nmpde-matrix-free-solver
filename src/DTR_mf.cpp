@@ -265,7 +265,7 @@ namespace DTR_mf
       additional_data.mapping_update_flags =
           (update_values | update_gradients | update_JxW_values | update_quadrature_points);
       additional_data.mapping_update_flags_boundary_faces =
-          (update_values | update_gradients | update_JxW_values | update_quadrature_points);
+          (update_JxW_values | update_quadrature_points);
 
       std::shared_ptr<MatrixFree<dim, double>> system_mf_storage(new MatrixFree<dim, double>());
 
@@ -356,27 +356,70 @@ namespace DTR_mf
   {
     Timer time;
 
+    system_rhs = 0.;
+    lifting = 0.;
+
+    // Interpolate boundary values for inhomogeneous Dirichlet BC on vector lifting
+    std::map<types::global_dof_index, double> boundary_values;
+    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+
+    boundary_functions[0] = &dirichletBC1;
+    boundary_functions[2] = &dirichletBC2;
+
+    VectorTools::interpolate_boundary_values(mapping,
+                                             dof_handler,
+                                             boundary_functions,
+                                             boundary_values);
+    for (const std::pair<const types::global_dof_index, double> &pair : boundary_values)
+      if (lifting.locally_owned_elements().is_element(pair.first))
+        lifting(pair.first) = pair.second;
+    lifting.update_ghost_values();
+
+    // Reference to coefficients
+    const Table<2, VectorizedArray<double>> &diffusion_coefficient =
+        system_matrix.get_diffusion_coefficient();
+    const Table<2, Tensor<1, dim, VectorizedArray<double>>> &transport_coefficient =
+        system_matrix.get_transport_coefficient();
+    const Table<2, VectorizedArray<double>> &reaction_coefficient =
+        system_matrix.get_reaction_coefficient();
     const Table<2, VectorizedArray<double>> &forcing_term_coefficient =
         system_matrix.get_forcing_term_coefficient();
 
-    system_rhs = 0;
     FEEvaluation<dim, degree_finite_element> fe_eval(*system_matrix.get_matrix_free());
 
-    // Loop over the cells to add the forcing term contribution
-    for (unsigned int cell = 0; cell < system_matrix.get_matrix_free()->n_cell_batches();
-         ++cell)
+    // Loop over the cells to add the forcing term and lifting contribution
+    for (unsigned int cell = 0; cell < system_matrix.get_matrix_free()->n_cell_batches(); ++cell)
     {
       fe_eval.reinit(cell);
-      for (const unsigned int q : fe_eval.quadrature_point_indices())
-        fe_eval.submit_value(forcing_term_coefficient(cell, q), q);
-      fe_eval.integrate_scatter(EvaluationFlags::values, system_rhs);
+      // read_dof_values_plain stores internally the values on the current cell for dofs that
+      // have no constraints. This is needed to leave unchanged the values on the previously
+      // setted value of the dofs with inhomogeneous Dirichlet constraints
+      fe_eval.read_dof_values_plain(lifting);
+      fe_eval.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
+
+      for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
+      {
+        // Get the gradient of the FE function at quadrature point q since it will be overwritten
+        Tensor<1, dim, VectorizedArray<double>> grad = fe_eval.get_gradient(q);
+
+        // Compute the transport and reaction terms
+        VectorizedArray<double> transport_value = scalar_product(transport_coefficient(cell, q), grad);
+        VectorizedArray<double> reaction_value = reaction_coefficient(cell, q) * fe_eval.get_value(q);
+
+        // Submit the term that will be tested by all basis function gradients on the current cell and integrated over
+        fe_eval.submit_gradient(-diffusion_coefficient(cell, q) * grad, q);
+        // Submit the term that will be tested by all basis function values on the current cell and integrated over
+        fe_eval.submit_value(-transport_value - reaction_value + forcing_term_coefficient(cell, q), q);
+      }
+
+      fe_eval.integrate_scatter(EvaluationFlags::values | EvaluationFlags::gradients, system_rhs);
+      // no need for constraints.distribute_local_to_global since is done by the above function
     }
 
-    // Loop over the boundary faces to impose Neumann BC
+    // Loop over the boundary faces to add the Neumann BC contribution
+    // Since the matrixfree structure does not cache internal face data, boundary data starts from index 0
     FEFaceEvaluation<dim, degree_finite_element> fe_face_eval(*system_matrix.get_matrix_free());
-    for (unsigned int face = system_matrix.get_matrix_free()->n_inner_face_batches();
-         face < (system_matrix.get_matrix_free()->n_inner_face_batches() + system_matrix.get_matrix_free()->n_boundary_face_batches());
-         ++face)
+    for (unsigned int face = 0; face < system_matrix.get_matrix_free()->n_boundary_face_batches(); ++face)
     {
       fe_face_eval.reinit(face);
 
@@ -394,89 +437,9 @@ namespace DTR_mf
     // Send the contributions to the respective owner of the dof
     system_rhs.compress(VectorOperation::add);
 
-    // IMPLEMENTATION FOR INHOMOGENEOUS D BC
-    /*system_rhs = 0;
-    lifting = 0;
-
-    // Interpolate boundary values for inhomogeneous Dirichlet BC on vector lifting
-    std::map<types::global_dof_index, double> boundary_values;
-    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
-
-    for (unsigned int i = 0; i < 4; ++i)
-      if (bcs[i] == 'D')
-        boundary_functions[i] = &dirichletBC;
-
-    VectorTools::interpolate_boundary_values(mapping,
-                                             dof_handler,
-                                             boundary_functions,
-                                             boundary_values);
-    for (const std::pair<const types::global_dof_index, double> &pair : boundary_values)
-      if (lifting.locally_owned_elements().is_element(pair.first))
-        lifting(pair.first) = pair.second;
-    lifting.update_ghost_values();
-
-    // Reference to diffusion coefficient
-    const Table<2, VectorizedArray<double>> &diffusion_coefficient =
-        system_matrix.get_diffusion_coefficient();
-    const Table<2, Tensor<1, dim, VectorizedArray<double>>> &transport_coefficient =
-        system_matrix.get_transport_coefficient();
-    const Table<2, VectorizedArray<double>> &reaction_coefficient =
-        system_matrix.get_reaction_coefficient();
-    const Table<2, VectorizedArray<double>> &forcing_term_coefficient =
-        system_matrix.get_forcing_term_coefficient();
-
-    // Evaluate the rhs integral over the interior domain
-    FEEvaluation<dim, degree_finite_element> fe_eval(*system_matrix.get_matrix_free());
-
-    for (unsigned int cell = 0; cell < system_matrix.get_matrix_free()->n_cell_batches(); ++cell)
-    {
-      fe_eval.reinit(cell);
-      // read_dof_values_plain stores internally the values on the current cell for dofs that
-      // have no constraints. This is needed to leave unchanged the values on the previously
-      // setted value of the dofs with inhomogeneous Dirichlet constraints
-      fe_eval.read_dof_values_plain(lifting);
-      fe_eval.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
-
-      for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
-      {
-        // Get the gradient of the FE function at quadrature point q since it will be overwritten
-          auto grad = fe_eval.get_gradient(q);
-          // Compute the transport and reaction terms
-          auto transport_value = scalar_product(transport_coefficient(cell, q), grad);
-          auto reaction_value = reaction_coefficient(cell, q) * fe_eval.get_value(q);
-          // Submit the term that will be tested by all basis function gradients on the current cell and integrated over
-          fe_eval.submit_gradient(diffusion_coefficient(cell, q) * grad, q);
-          // Submit the term that will be tested by all basis function values on the current cell and integrated over
-          fe_eval.submit_value(transport_value + reaction_value + forcing_term_coefficient(cell, q), q);
-      }
-
-      fe_eval.integrate_scatter(EvaluationFlags::values | EvaluationFlags::gradients, system_rhs);
-      // no need for constraints.distribute_local_to_global since is done by the above line
-    }
-
-    // Integrate over faces batches to add the contribution of Neumann BC
-    FEFaceEvaluation<dim, degree_finite_element> fe_face_eval(*system_matrix.get_matrix_free());
-    for (unsigned int face = 0; face < system_matrix.get_matrix_free()->n_boundary_face_batches(); ++face)
-    {
-      fe_face_eval.reinit(face);
-
-      for (unsigned int q = 0; q < fe_face_eval.n_q_points; ++q)
-      {
-        if (fe_face_eval.boundary_id() == 1)
-          fe_face_eval.submit_value(neumannBC1.value(fe_face_eval.quadrature_point(q)), q);
-        else if (fe_face_eval.boundary_id() == 3)
-          fe_face_eval.submit_value(neumannBC2.value(fe_face_eval.quadrature_point(q)), q);
-      }
-
-      fe_face_eval.integrate_scatter(EvaluationFlags::values, system_rhs);
-    }
-
-    // Send the contributions to the respective owner of the dof
-    system_rhs.compress(VectorOperation::add);
-
     setup_time += time.wall_time();
     time_details << "Assemble right hand side   (CPU/wall) " << time.cpu_time()
-                 << "s/" << time.wall_time() << 's' << std::endl;*/
+                 << "s/" << time.wall_time() << 's' << std::endl;
   }
 
   template <int dim>
@@ -565,7 +528,7 @@ namespace DTR_mf
     constraints.distribute(solution);
 
     // Add the lifting to the solution to set the correct inhomogeneous Dirichlet BC
-    //! solution += lifting;
+    solution += lifting;
 
     pcout << "Time solve (" << solver_control.last_step() << " iterations)"
           << (solver_control.last_step() < 10 ? "  " : " ") << "(CPU/wall) "

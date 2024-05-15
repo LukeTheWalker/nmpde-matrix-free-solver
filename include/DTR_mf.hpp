@@ -43,7 +43,7 @@ namespace DTR_mf
   // To be efficient matrix-free implementation require knowledge of loop lengths at compile time
   const unsigned int degree_finite_element = 2;
   const unsigned int dim = 2;
-  const char bcs[4] = {'Z', 'N', 'Z', 'N'}; // left, right, bottom, top
+  const char bcs[4] = {'D', 'N', 'D', 'N'}; // left, right, bottom, top
 
   template <int dim>
   class DiffusionCoefficient : public Function<dim>
@@ -74,7 +74,7 @@ namespace DTR_mf
     void vector_value(const Point<dim, number> & /*p*/, Vector<number> &values) const
     {
       values[0] = 1.;
-      values[1] = 1.;
+      values[1] = 0.;
     }
 
     virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
@@ -88,14 +88,14 @@ namespace DTR_mf
       if (component == 0)
         return 1.;
       else
-        return 1.;
+        return 0.;
     }
 
     template <typename number>
-    void tensor_value(const Point<dim, number> &/*p*/, Tensor<1, dim, number> &values) const
+    void tensor_value(const Point<dim, number> & /*p*/, Tensor<1, dim, number> &values) const
     {
       values[0] = 1.;
-      values[1] = 1.;
+      values[1] = 0.;
     }
   };
 
@@ -127,12 +127,11 @@ namespace DTR_mf
     template <typename number>
     number value(const Point<dim, number> &p, const unsigned int /*component*/ = 0) const
     {
-      return (exp(p[0]) - number(1.)) * (exp(p[1]) - number(1.));
+      return number(1.) - number(2.) * exp(p[0]);
     }
   };
 
-  // Dirichlet boundary conditions.
-  class DirichletBC : public Function<dim>
+  class DirichletBC1 : public Function<dim>
   {
   public:
     virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
@@ -140,9 +139,23 @@ namespace DTR_mf
       return value<double>(p, component);
     }
     template <typename number>
-    double value(const Point<dim, number> & /*p*/, const unsigned int /*component*/ = 0) const
+    double value(const Point<dim, number> & p, const unsigned int /*component*/ = 0) const
     {
-      return 0.;
+      return number(2.)*exp(p[1]) - number(1.);
+    }
+  };
+
+  class DirichletBC2 : public Function<dim>
+  {
+  public:
+    virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
+    {
+      return value<double>(p, component);
+    }
+    template <typename number>
+    double value(const Point<dim, number> & p, const unsigned int /*component*/ = 0) const
+    {
+      return number(2.)*exp(p[0]) - number(1.);
     }
   };
 
@@ -157,8 +170,7 @@ namespace DTR_mf
     template <typename number>
     number value(const Point<dim, number> &p, const unsigned int /*component*/ = 0) const
     {
-      AssertThrow(p[0] == number(1.), ExcInternalError());
-      return number(exp(1.)) * (exp(p[1]) - number(1.));
+      return number(2.)*exp(p[0]) * (number(2.)*exp(p[1]) - number(1.));
     }
   };
 
@@ -173,28 +185,24 @@ namespace DTR_mf
     template <typename number>
     number value(const Point<dim, number> &p, const unsigned int /*component*/ = 0) const
     {
-      AssertThrow(p[1] == number(1.), ExcInternalError());
-      return number(exp(1.)) * (exp(p[0]) - number(1.));
+      return number(2.)*exp(p[1]) * (number(2.)*exp(p[0]) - number(1.));
     }
   };
 
-  // Exact solution.
   class ExactSolution : public Function<dim>
   {
   public:
-    // Evaluation.
     virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
     {
-      return (std::exp(p[0]) - 1.) * (std::exp(p[1]) - 1.);
+      return (2.*exp(p[0]) - 1.)*(2.*exp(p[1]) - 1.);
     }
 
-    // Gradient evaluation.
     virtual Tensor<1, dim> gradient(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
     {
       Tensor<1, dim> result;
 
-      result[0] = std::exp(p[0]) * (std::exp(p[1]) - 1.);
-      result[1] = std::exp(p[1]) * (std::exp(p[0]) - 1.);
+      result[0] = 2.*exp(p[0]) * (2.*exp(p[1]) - 1.);
+      result[1] = 2.*exp(p[1]) * (2.*exp(p[0]) - 1.);
 
       return result;
     }
@@ -265,7 +273,6 @@ namespace DTR_mf
     Table<2, VectorizedArray<number>> forcing_term_coefficient;
   };
 
-
   template <int dim>
   class DTRProblem
   {
@@ -321,7 +328,8 @@ namespace DTR_mf
     ConditionalOStream pcout;
     ConditionalOStream time_details;
 
-    DirichletBC dirichletBC;
+    DirichletBC1 dirichletBC1;
+    DirichletBC2 dirichletBC2;
     NeumannBC1 neumannBC1;
     NeumannBC2 neumannBC2;
   };
