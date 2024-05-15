@@ -17,6 +17,8 @@ void solve_problem(unsigned int initial_refinements = 5);
  * It writes the convergence table both to the /output/convergence_mf.csv file and to the standard output.
  */
 void convergence_study();
+void dimension_time_study();
+
 
 /**
  * @brief Evaluate the solver performances for different polynomial degrees.
@@ -41,6 +43,8 @@ int main(int argc, char *argv[])
       solve_problem(atoi(argv[2]));
     else if (argc == 2 && std::string(argv[1]) == "convergence")
       convergence_study();
+    else if (std::string(argv[1]) == "dimension")
+      dimension_time_study();
     else
     {
       if(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
@@ -146,26 +150,23 @@ void convergence_study()
   }
 }
 
-void polynomial_degree_study()
+void dimension_time_study()
 {
-  std::ofstream file_out;
-
-  // define the range of polynomial degrees to test
-  constexpr int degrees[] = {1, 2, 3};
+  std::ofstream dimension_time_file;
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
-    file_out.open(output_dir + "/polynomial_degree_mf.csv");
-    file_out << "degree,dofs,iterations,setup,solve,mdofs-s" << std::endl;
+    dimension_time_file.open("./output_mf/dimension_time_mf.csv");
+    dimension_time_file << "n_dofs,steup+assemble,solve" << std::endl;
   }
 
-  for (int d : degrees)
+  for (unsigned int refinements = 3; refinements < 4; ++refinements)
   {
     if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      std::cout << "Starting with " << d << " degrees...\n";
+      std::cout << "Starting with " << refinements << " initial refinements...\n";
 
-    DTRProblem<d> problem(false);
-    problem.run(3, dim + 1);
+    DTRProblem<dim> problem(dimension_time_file, false);
+    problem.run(refinements);
 
     if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
     {
@@ -177,6 +178,6 @@ void polynomial_degree_study()
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
-    file_out.close();
+    dimension_time_file.close();
   }
 }

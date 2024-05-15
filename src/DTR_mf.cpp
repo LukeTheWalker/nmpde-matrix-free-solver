@@ -213,6 +213,26 @@ namespace DTR_mf
   }
 
   template <int dim>
+  DTRProblem<dim>::DTRProblem(std::ofstream& dimension_time_file, bool verbose)
+#ifdef DEAL_II_WITH_P4EST
+      : triangulation(MPI_COMM_WORLD,
+                      Triangulation<dim>::limit_level_difference_at_vertices,
+                      parallel::distributed::Triangulation<
+                          dim>::construct_multigrid_hierarchy)
+#else
+      : triangulation(Triangulation<dim>::limit_level_difference_at_vertices)
+#endif
+        ,
+        fe(degree_finite_element),
+        dof_handler(triangulation),
+        setup_time(0.),
+        pcout(std::cout, verbose && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
+        // ! remove the false for the additional output stream for timing
+        time_details(dimension_time_file, true && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+  }
+
+  template <int dim>
   void DTRProblem<dim>::setup_system()
   {
     Timer time;
@@ -227,6 +247,7 @@ namespace DTR_mf
     pcout << "Finite element degree:        " << fe.degree << std::endl;
     pcout << "Number of cells:              " << triangulation.n_active_cells() << std::endl;
     pcout << "Number of DoFs per cell:      " << fe.dofs_per_cell << std::endl;
+    time_details << dof_handler.n_dofs() << ",";
     pcout << "Number of DoFs:               " << dof_handler.n_dofs() << std::endl;
 
     // Consider only locally relevant dofs otherwise memory will explode
@@ -252,8 +273,7 @@ namespace DTR_mf
     constraints.close();
 
     setup_time += time.wall_time();
-    time_details << "Distribute DoFs & B.C.     (CPU/wall) " << time.cpu_time()
-                 << "s/" << time.wall_time() << 's' << std::endl;
+    //time_details /*<< "Distribute DoFs & B.C."*/ << time.wall_time() << 's';
     time.restart();
 
     // Setup the matrix-free instance of the problem and store it in a shared pointer
@@ -291,8 +311,7 @@ namespace DTR_mf
     system_matrix.initialize_dof_vector(system_rhs);
 
     setup_time += time.wall_time();
-    time_details << "Setup matrix-free system   (CPU/wall) " << time.cpu_time()
-                 << "s/" << time.wall_time() << 's' << std::endl;
+    //time_details /*<< "Setup matrix-free system"*/ << time.wall_time() << 's';
     time.restart();
 
     // Initialize the matrices for the multigrid method on all the levels
@@ -346,8 +365,7 @@ namespace DTR_mf
                                                ForcingTerm<dim>());
     }
     setup_time += time.wall_time();
-    time_details << "Setup matrix-free levels   (CPU/wall) " << time.cpu_time()
-                 << "s/" << time.wall_time() << 's' << std::endl;
+    //time_details /*<< "Setup matrix-free levels"*/ << time.wall_time() << 's';
   }
 
   // Assemble rhs and handle the inhomogeneous Dirichlet constraints
@@ -449,8 +467,7 @@ namespace DTR_mf
     MGTransferMatrixFree<dim, float> mg_transfer(mg_constrained_dofs);
     mg_transfer.build(dof_handler);
     setup_time += time.wall_time();
-    time_details << "MG build transfer time     (CPU/wall) " << time.cpu_time()
-                 << "s/" << time.wall_time() << "s\n";
+    //time_details /*<< "MG build transfer time"*/ << time.wall_time() << "s";
     time.restart();
 
     // Setup the Chebyshev iteration smoother
@@ -509,6 +526,11 @@ namespace DTR_mf
     // Setup the solver
     SolverControl solver_control(100, 1e-12 * system_rhs.l2_norm());
     SolverCG<LinearAlgebra::distributed::Vector<double>> solver(solver_control);
+    setup_time += time.wall_time();
+    //time_details */<< "MG build smoother time"*/ << time.wall_time() << "s";
+    pcout << "Total setup time               (wall) " << setup_time << "s\n";
+    time_details /*<< "Setup time"*/ << setup_time << ",";
+
 
     time.reset();
     time.start();
@@ -532,6 +554,8 @@ namespace DTR_mf
     pcout << "Time solve (" << solver_control.last_step() << " iterations)"
           << (solver_control.last_step() < 10 ? "  " : " ") << "(CPU/wall) "
           << time.cpu_time() << "s/" << time.wall_time() << "s\n";
+    time_details /*<< "solve time"*/ << time.wall_time() << std::endl;
+
   }
 
   template <int dim>
@@ -556,8 +580,7 @@ namespace DTR_mf
     data_out.write_vtu_with_pvtu_record(
         output_dir, "solution", cycle, MPI_COMM_WORLD, 3);
 
-    time_details << "Time write output          (CPU/wall) " << time.cpu_time()
-                 << "s/" << time.wall_time() << "s\n";
+    //time_details /*<< "Time write output"*/ << time.wall_time() << "s";
   }
 
   template <int dim>

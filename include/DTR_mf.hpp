@@ -280,6 +280,8 @@ namespace DTR_mf
   {
   public:
     DTRProblem(bool verbose = true);
+    DTRProblem(std::ofstream& dimension_time_file, bool verbose = true);
+
 
     /**
      * @brief Compute the solution of the ADR problem.
