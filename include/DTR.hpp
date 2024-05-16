@@ -82,7 +82,7 @@ public:
                  Vector<double> &values) const override
     {
       values[0] = 1.;
-      values[1] = 1.;
+      values[1] = 0.;
     }
 
     virtual double
@@ -92,7 +92,7 @@ public:
         if (component == 0)
             return 1.;
         else
-            return 1.;
+            return 0.;
     }
   };
 
@@ -127,54 +127,43 @@ public:
     value(const Point<dim> & p,
           const unsigned int /*component*/ = 0) const override
     {
-      return (std::exp(p[0]) - 1.)*(std::exp(p[1]) - 1.);
+        return 1. - 2. * exp(p[0]);
     }
   };
 
-  // Dirichlet boundary conditions.
-  class DirichletBC : public Function<dim>
+  class DirichletBC1 : public Function<dim>
   {
   public:
-    // Constructor.
-    DirichletBC()
-    {}
-
-    // Evaluation.
-    virtual double
-    value(const Point<dim> &/*p*/,
-          const unsigned int /*component*/ = 0) const override
+    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
     {
-      return 0.;
+      return 2.*exp(p[1]) - 1.;
     }
   };
 
-class NeumannBC1 : public Function<dim>
+  class DirichletBC2 : public Function<dim>
   {
   public:
-    // Constructor.
-    NeumannBC1()
-    {}
-
-    // Evaluation:
-    virtual double
-    value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
+    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
     {
-      return std::exp(1.)*(std::exp(p[1]) - 1.);
+      return 2.*exp(p[0]) - 1.;
     }
   };
 
-class NeumannBC2 : public Function<dim>
+  class NeumannBC1 : public Function<dim>
   {
   public:
-    // Constructor.
-    NeumannBC2()
-    {}
-
-    // Evaluation:
-    virtual double
-    value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
+    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
     {
-      return std::exp(1.)*(std::exp(p[0]) - 1.);
+      return 2.*exp(p[0]) * (2.*exp(p[1]) - 1.);
+    }
+  };
+
+  class NeumannBC2 : public Function<dim>
+  {
+  public:
+    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
+    {
+      return 2.*exp(p[1]) * (2.*exp(p[0]) - 1.);
     }
   };
 
@@ -182,27 +171,17 @@ class NeumannBC2 : public Function<dim>
   class ExactSolution : public Function<dim>
   {
   public:
-    // Constructor.
-    ExactSolution()
-    {}
-
-    // Evaluation.
-    virtual double
-    value(const Point<dim> &p,
-          const unsigned int /*component*/ = 0) const override
+    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
     {
-      return (std::exp(p[0]) - 1.)*(std::exp(p[1]) - 1.);
+      return (2.*exp(p[0]) - 1.)*(2.*exp(p[1]) - 1.);
     }
 
-    // Gradient evaluation.
-    virtual Tensor<1, dim>
-    gradient(const Point<dim> &p,
-             const unsigned int /*component*/ = 0) const override
+    virtual Tensor<1, dim> gradient(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
     {
       Tensor<1, dim> result;
 
-      result[0] = std::exp(p[0])*(std::exp(p[1]) - 1.);
-      result[1] = std::exp(p[1])*(std::exp(p[0]) - 1.);
+      result[0] = 2.*exp(p[0]) * (2.*exp(p[1]) - 1.);
+      result[1] = 2.*exp(p[1]) * (2.*exp(p[0]) - 1.);
 
       return result;
     }
@@ -264,9 +243,8 @@ protected:
   ForcingTerm forcing_term;
 
   // Dirichlet boundary conditions.
-  DirichletBC dirichletBC;
-
-  // Neumann boundary conditions.
+  DirichletBC1 dirichletBC1;
+  DirichletBC2 dirichletBC2;
   NeumannBC1 neumannBC1;
   NeumannBC2 neumannBC2;
 

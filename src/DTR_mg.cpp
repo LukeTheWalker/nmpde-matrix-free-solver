@@ -36,13 +36,8 @@ namespace DTR_mg
 
     std::map<types::boundary_id, const Function<dim> *> dirichlet_boundary_functions;
 
-    for (unsigned int i = 0; i < 4; ++i)
-    {
-      if (bcs[i] == 'Z')
-        dirichlet_boundary_functions[i] = &homogeneous_dirichlet_bc;
-      else if (bcs[i] == 'D')
-        dirichlet_boundary_functions[i] = &dirichletBC;
-    }
+    dirichlet_boundary_functions[0] = &dirichletBC1;
+    dirichlet_boundary_functions[2] = &dirichletBC2;
 
     VectorTools::interpolate_boundary_values(dof_handler,
                                              dirichlet_boundary_functions,
@@ -330,11 +325,12 @@ namespace DTR_mg
 
     SolverControl coarse_solver_control(50000, 1e-12, false, false);
     SolverCG<VectorType> coarse_solver(coarse_solver_control);
-    PreconditionIdentity identity;
+    LinearAlgebraTrilinos::MPI::PreconditionSSOR identity;
+    identity.initialize(mg_matrix[0], 1.0);
     MGCoarseGridIterativeSolver<VectorType,
                                 SolverCG<VectorType>,
                                 MatrixType,
-                                PreconditionIdentity>
+                                LinearAlgebraTrilinos::MPI::PreconditionSSOR>
         coarse_grid_solver(coarse_solver, mg_matrix[0], identity);
 
     using Smoother = LinearAlgebraTrilinos::MPI::PreconditionSSOR;

@@ -1,7 +1,5 @@
 #include "DTR.hpp"
 
-const char bcs[4] = {'Z', 'N', 'Z', 'N'};
-
 void DTR::setup()
 {
   pcout << "===============================================" << std::endl;
@@ -15,6 +13,8 @@ void DTR::setup()
     Triangulation<dim> mesh_serial;
 
     {
+      // GridGenerator::hyper_cube(mesh_serial, 0., 1., true);
+      // mesh_serial.refine_global(7);
       GridIn<dim> grid_in;
       grid_in.attach_triangulation(mesh_serial);
 
@@ -232,7 +232,7 @@ void DTR::assemble()
             // tag) is that of one of the Neumann boundaries, we assemble the
             // boundary integral.
             if (cell->face(face_number)->at_boundary() &&
-                bcs[cell->face(face_number)->boundary_id()] == 'N')
+                ((cell->face(face_number)->boundary_id() == 1) || cell->face(face_number)->boundary_id() == 3))
 
               {
                 fe_values_boundary.reinit(cell, face_number);
@@ -288,23 +288,13 @@ void DTR::assemble()
 
     std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
-    for (unsigned int i = 0; i < 4; ++i)
-      if (bcs[i] == 'D')
-        boundary_functions[i] = &dirichletBC;
+    boundary_functions[0] = &dirichletBC1;
+    boundary_functions[2] = &dirichletBC2;
 
     VectorTools::interpolate_boundary_values(dof_handler,
                                              boundary_functions,
                                              boundary_values);
 
-    boundary_functions.clear();
-    Functions::ZeroFunction<dim> zero_function(dim + 1);
-    for (unsigned int i = 0; i < 4; ++i)
-      if (bcs[i] == 'Z')
-        boundary_functions[i] = &zero_function;
-
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                             boundary_functions,
-                                             boundary_values);
     // Finally, we modify the linear system to apply the boundary
     // conditions. This replaces the equations for the boundary DoFs with
     // the corresponding u_i = 0 equations.
