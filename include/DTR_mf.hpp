@@ -281,12 +281,15 @@ namespace DTR_mf
 
     /**
      * @brief Compute the solution of the ADR problem.
-     * It executes the setup, rhs assembly, solve, and output_results steps for the solution of the problem.
-     * The given number of initial refinements determines the number of cells in the mesh at the first step of the multigrid.
-     * The initial number of cells is dim^(initial_refinements-dim).
+     * It executes the setup, rhs assembly, solve, and output_results steps for the solution of the problem
+     * for a given number of times.
+     * The given number of initial refinements determines the number of cells in the mesh at the first solution
+     * as initial number of cells = dim^(initial_refinements-dim).
+     * The number of executed cycles is n_cycles - dim.
      * @param n_initial_refinements the number of initial refinements to perform on the mesh.
+     * @param n_cycles the number of solutions to compute adding a refinement at each iteration.
      */
-    void run(unsigned int n_initial_refinements = 3);
+    void run(unsigned int n_initial_refinements = 3, unsigned int n_cycles = 9);
     double compute_error(const VectorTools::NormType &norm_type) const;
 
     unsigned int get_cells() const { return triangulation.n_active_cells(); }

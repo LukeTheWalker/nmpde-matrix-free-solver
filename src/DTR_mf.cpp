@@ -562,7 +562,7 @@ namespace DTR_mf
   }
 
   template <int dim>
-  void DTRProblem<dim>::run(unsigned int n_initial_refinements)
+  void DTRProblem<dim>::run(unsigned int n_initial_refinements, unsigned int n_cycles)
   {
     // Print processor vectorization, MPI and multi-threading details
     {
@@ -582,7 +582,11 @@ namespace DTR_mf
             << std::endl;
     }
 
-    for (unsigned int cycle = 0; cycle < 9 - dim; ++cycle)
+    // must compute at least a solution
+    Assert(n_cycles > dim, ExcMessage("The number of cycles must be at least dim + 1"));
+
+
+    for (unsigned int cycle = 0; cycle < n_cycles - dim; ++cycle)
     {
       pcout << "Cycle " << cycle << std::endl;
 

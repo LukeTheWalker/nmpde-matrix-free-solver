@@ -89,7 +89,7 @@ void convergence_study()
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
-    convergence_file.open("./output/convergence_mf.csv");
+    convergence_file.open(output_dir + "/convergence_mf.csv");
     convergence_file << "cells,eL2,eH1" << std::endl;
   }
 
@@ -99,12 +99,15 @@ void convergence_study()
       std::cout << "Starting with " << refinements - dim << " initial refinements...\n";
 
     DTRProblem<dim> problem(false);
-    problem.run(refinements);
+    problem.run(refinements, dim + 1);
 
     const double error_L2 = problem.compute_error(VectorTools::L2_norm);
     const double error_H1 = problem.compute_error(VectorTools::H1_norm);
 
-    table.add_value("cells", problem.get_cells());
+    unsigned int cells = problem.get_cells();
+    Utilities::MPI::sum<int>(cells, MPI_COMM_WORLD);
+
+    table.add_value("cells", cells);
     table.add_value("L2", error_L2);
     table.add_value("H1", error_H1);
 
@@ -125,7 +128,6 @@ void convergence_study()
   {
     table.set_scientific("L2", true);
     table.set_scientific("H1", true);
-    table.set_precision("h", 6);
     table.set_precision("L2", 6);
     table.set_precision("H1", 6);
     table.write_text(std::cout);
