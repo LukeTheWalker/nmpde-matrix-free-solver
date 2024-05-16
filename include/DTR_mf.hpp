@@ -294,7 +294,7 @@ namespace DTR_mf
     void run(unsigned int n_initial_refinements = 3, unsigned int n_cycles = 9);
     double compute_error(const VectorTools::NormType &norm_type) const;
 
-    unsigned int get_cells() const { return triangulation.n_active_cells(); }
+    unsigned int get_cells() const { return triangulation.n_global_active_cells(); }
     unsigned int get_dofs() const { return dof_handler.n_dofs(); }
     unsigned int get_fe_degree() const { return degree_finite_element; }
 

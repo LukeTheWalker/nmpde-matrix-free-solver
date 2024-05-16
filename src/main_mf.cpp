@@ -116,7 +116,7 @@ void convergence_study()
 
     if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
     {
-      convergence_file << problem.get_cells() << "," << error_L2 << "," << error_H1 << std::endl;
+      convergence_file << cells << "," << error_L2 << "," << error_H1 << std::endl;
       std::cout << "\tFE degree:       " << problem.get_fe_degree() << std::endl;
       std::cout << "\tNumber of cells: " << problem.get_cells() << std::endl;
       std::cout << "\tNumber of dofs:  " << problem.get_dofs() << std::endl;
