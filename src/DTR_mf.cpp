@@ -529,7 +529,7 @@ namespace DTR_mf
     setup_time += time.wall_time();
     //time_details */<< "MG build smoother time"*/ << time.wall_time() << "s";
     pcout << "Total setup time               (wall) " << setup_time << "s\n";
-    time_details /*<< "Setup time"*/ << setup_time << ",";
+    time_details /*<< "Setup time"*/ <<Utilities::MPI::min_max_avg(setup_time, MPI_COMM_WORLD).avg << ",";
 
 
     time.reset();
@@ -554,7 +554,7 @@ namespace DTR_mf
     pcout << "Time solve (" << solver_control.last_step() << " iterations)"
           << (solver_control.last_step() < 10 ? "  " : " ") << "(CPU/wall) "
           << time.cpu_time() << "s/" << time.wall_time() << "s\n";
-    time_details /*<< "solve time"*/ << time.wall_time() << std::endl;
+    time_details /*<< "solve time"*/ << Utilities::MPI::min_max_avg(time.wall_time(), MPI_COMM_WORLD).avg << std::endl;
 
   }
 

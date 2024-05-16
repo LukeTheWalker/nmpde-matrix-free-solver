@@ -5,7 +5,7 @@ using namespace dealii;
 
 void solve_problem();
 void convergence_study();
-//void dimension_time_study();
+void dimension_time_study();
 
 // Main function with convergence table.
 int main(int argc, char * argv[])
@@ -26,8 +26,8 @@ int main(int argc, char * argv[])
       solve_problem();
     else if (std::string(argv[1]) == "convergence")
       convergence_study();
-    /*else if (std::string(argv[1]) == "dimension")
-      dimension_time_study();*/
+    else if (std::string(argv[1]) == "dimension")
+      dimension_time_study();
 
     else
     {
@@ -70,15 +70,14 @@ int main(int argc, char * argv[])
  */
 void solve_problem()
 {
-  const std::string  mesh_filename = "../mesh/mesh-square-h0.012500.msh";
   const unsigned int degree        = 1;
 
-  DTR problem(mesh_filename, degree);
+  DTR problem(degree);
 
   problem.setup();
   problem.assemble();
   problem.solve();
-  problem.output();
+  //problem.output();
 
   const double error_L2 = problem.compute_error(VectorTools::L2_norm);
   const double error_H1 = problem.compute_error(VectorTools::H1_norm);
@@ -99,15 +98,17 @@ void convergence_study()
   ConvergenceTable table;
   std::ofstream convergence_file;
 
-  const std::vector<std::string> meshes = {"../mesh/mesh-square-h0.100000.msh",
+  /*const std::vector<std::string> meshes = {"../mesh/mesh-square-h0.100000.msh",
                                           "../mesh/mesh-square-h0.050000.msh",
                                           "../mesh/mesh-square-h0.025000.msh",
                                           "../mesh/mesh-square-h0.012500.msh"};
   const std::vector<double>      h_vals = {1.0 / 10.0,
                                           1.0 / 20.0,
                                           1.0 / 40.0,
-                                          1.0 / 80.0};
+                                          1.0 / 80.0};*/
   const unsigned int             degree = 2;
+  const unsigned int n_initial_refinements = 2;
+
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
@@ -115,7 +116,7 @@ void convergence_study()
     convergence_file << "h,eL2,eH1" << std::endl;
   }
 
-  for (unsigned int i = 0; i < meshes.size(); ++i)
+  /*for (unsigned int i = 0; i < meshes.size(); ++i)
   {
     if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       std::cout << "Starting with " << meshes.size() << " mesh's size...\n";
@@ -125,21 +126,35 @@ void convergence_study()
     problem.setup();
     problem.assemble();
     problem.solve();
-    problem.output();
+    problem.output();*/
+
+    for (unsigned int cycle = 0; cycle < 5; ++cycle)
+  {
+    
+    if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+    {
+      std::cout << "Cycle " << cycle << std::endl;
+    }
+
+    DTR problem(degree);
+
+    problem.setup(n_initial_refinements + cycle);
+    problem.assemble();
+    problem.solve();
 
     const double error_L2 = problem.compute_error(VectorTools::L2_norm);
     const double error_H1 = problem.compute_error(VectorTools::H1_norm);
 
-    table.add_value("h", h_vals[i]);
+    table.add_value("cycle", cycle);
     table.add_value("L2", error_L2);
     table.add_value("H1", error_H1);
 
     if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
     {
 
-      convergence_file << h_vals[i] << "," << error_L2 << "," << error_H1 << std::endl;
+      convergence_file << cycle << "," << error_L2 << "," << error_H1 << std::endl;
       std::cout << "\tFE degree:       " << degree << std::endl;
-      std::cout << "\th:               " << h_vals[i] << std::endl;
+      std::cout << "\tcycle:               " << cycle << std::endl;
       std::cout << "\tL2 error:        " << error_L2 << std::endl;
       std::cout << "\tH1 error:        " << error_H1 << std::endl;
     }
@@ -156,5 +171,41 @@ void convergence_study()
     table.set_precision("H1", 6);
     table.write_text(std::cout);
     convergence_file.close();
+  }
+}
+
+void dimension_time_study()
+{
+  std::ofstream dimension_time_file;
+  const unsigned int degree = 2;
+  const unsigned int n_initial_refinements = 4;
+
+
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    dimension_time_file.open("./output_mb/dimension_time_mb.csv");
+    dimension_time_file << "n_dofs,steup+assemble,solve" << std::endl;
+  }
+
+  for (unsigned int cycle = 0; cycle < 7; ++cycle)
+  {
+    
+    if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+    {
+      std::cout << "Cycle " << cycle << std::endl;
+    }
+
+    DTR problem(degree, dimension_time_file);
+
+    problem.setup(n_initial_refinements + cycle);
+    problem.assemble();
+    problem.solve();
+    //problem.output();
+
+  }
+
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    dimension_time_file.close();
   }
 }

@@ -19,14 +19,6 @@ void solve_problem(unsigned int initial_refinements = 5);
 void convergence_study();
 void dimension_time_study();
 
-
-/**
- * @brief Evaluate the solver performances for different polynomial degrees.
- * Many metrics are stored in the polynomial_degree_mf.csv file in the usual output directory, such as the number of dofs,
- * the number of iterations, the solver time and MDoFs/s.
- */
-void polynomial_degree_study()
-
 int main(int argc, char *argv[])
 {
   try
@@ -47,11 +39,10 @@ int main(int argc, char *argv[])
       dimension_time_study();
     else
     {
-      if(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
         std::cerr << "Usage: " << argv[0] << " [ solve | convergence ] [optional arguments]" << std::endl;
       return 1;
     }
-
   }
   catch (std::exception &exc)
   {
@@ -153,6 +144,7 @@ void convergence_study()
 void dimension_time_study()
 {
   std::ofstream dimension_time_file;
+  unsigned int refinements = 3;
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
@@ -160,21 +152,11 @@ void dimension_time_study()
     dimension_time_file << "n_dofs,steup+assemble,solve" << std::endl;
   }
 
-  for (unsigned int refinements = 3; refinements < 4; ++refinements)
-  {
-    if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      std::cout << "Starting with " << refinements << " initial refinements...\n";
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+    std::cout << "Starting with " << refinements << " initial refinements...\n";
 
-    DTRProblem<dim> problem(dimension_time_file, false);
-    problem.run(refinements);
-
-    if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-    {
-      std::cout << "\tFE degree:       " << problem.get_fe_degree() << std::endl;
-      std::cout << "\tNumber of cells: " << problem.get_cells() << std::endl;
-      std::cout << "\tNumber of dofs:  " << problem.get_dofs() << std::endl;
-    }
-  }
+  DTRProblem<dim> problem(dimension_time_file, false);
+  problem.run(refinements);
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
