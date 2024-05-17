@@ -107,7 +107,7 @@ void convergence_study()
                                           1.0 / 20.0,
                                           1.0 / 40.0,
                                           1.0 / 80.0};
-  const unsigned int             degree = 1;
+  const unsigned int             degree = 2;
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
