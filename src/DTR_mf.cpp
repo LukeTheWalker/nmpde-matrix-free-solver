@@ -434,7 +434,8 @@ namespace DTR_mf
       // no need for constraints.distribute_local_to_global since is done by the above function
     }
 
-    // Loop over the boundary faces to impose Neumann BC
+    // Loop over the boundary faces to add the Neumann BC contribution
+    // Since the matrixfree structure does not cache internal face data, boundary data starts from index 0
     FEFaceEvaluation<dim, degree_finite_element> fe_face_eval(*system_matrix.get_matrix_free());
     for (unsigned int face = 0; face < system_matrix.get_matrix_free()->n_boundary_face_batches(); ++face)
     {
@@ -606,7 +607,6 @@ namespace DTR_mf
 
     // must compute at least a solution
     Assert(n_cycles > dim, ExcMessage("The number of cycles must be at least dim + 1"));
-
 
     for (unsigned int cycle = 0; cycle < n_cycles - dim; ++cycle)
     {

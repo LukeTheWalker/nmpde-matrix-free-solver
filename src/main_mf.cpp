@@ -121,7 +121,7 @@ void convergence_study()
     {
       convergence_file << cells << "," << error_L2 << "," << error_H1 << std::endl;
       std::cout << "\tFE degree:       " << problem.get_fe_degree() << std::endl;
-      std::cout << "\tNumber of cells: " << problem.get_cells() << std::endl;
+      std::cout << "\tNumber of cells: " << cells << std::endl;
       std::cout << "\tNumber of dofs:  " << problem.get_dofs() << std::endl;
       std::cout << "\tL2 error:        " << error_L2 << std::endl;
       std::cout << "\tH1 error:        " << error_H1 << std::endl;

@@ -133,6 +133,7 @@ namespace DTR_mf
     }
   };
 
+  // Dirichlet boundary conditions.
   class DirichletBC1 : public Function<dim>
   {
   public:
