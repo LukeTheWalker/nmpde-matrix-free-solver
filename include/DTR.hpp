@@ -128,16 +128,33 @@ public:
     value(const Point<dim> & p,
           const unsigned int /*component*/ = 0) const override
     {
-        return 1. - 2. * exp(p[0]);
+      return (1.) - (2.) * exp(p[0]);
     }
   };
 
+  // Dirichlet boundary conditions.
   class DirichletBC1 : public Function<dim>
   {
   public:
-    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
+    // Evaluation.
+    virtual double
+    value(const Point<dim> &p,
+          const unsigned int /*component*/ = 0) const override
     {
-      return 2.*exp(p[1]) - 1.;
+      return (2.)*exp(p[1]) - (1.);   
+    }
+  };
+
+   // Dirichlet boundary conditions.
+  class DirichletBC2 : public Function<dim>
+  {
+  public:
+    // Evaluation.
+    virtual double
+    value(const Point<dim> &p,
+          const unsigned int /*component*/ = 0) const override
+    {
+      return (2.)*exp(p[1]) - (1.);    
     }
   };
 
@@ -146,7 +163,7 @@ public:
   public:
     virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
     {
-      return 2.*exp(p[0]) - 1.;
+      return (2.)*exp(p[0]) * ((2.)*exp(p[1]) - (1.));
     }
   };
 
@@ -155,16 +172,7 @@ public:
   public:
     virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
     {
-      return 2.*exp(p[0]) * (2.*exp(p[1]) - 1.);
-    }
-  };
-
-  class NeumannBC2 : public Function<dim>
-  {
-  public:
-    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-    {
-      return 2.*exp(p[1]) * (2.*exp(p[0]) - 1.);
+      return (2.)*exp(p[1]) * ((2.)*exp(p[0]) - (1.));
     }
   };
 
@@ -257,6 +265,7 @@ protected:
   // Dirichlet boundary conditions.
   DirichletBC1 dirichletBC1;
   DirichletBC2 dirichletBC2;
+  // Neumann boundary conditions.
   NeumannBC1 neumannBC1;
   NeumannBC2 neumannBC2;
 

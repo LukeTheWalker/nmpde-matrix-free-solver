@@ -107,7 +107,7 @@ void convergence_study()
                                           1.0 / 40.0,
                                           1.0 / 80.0};*/
   const unsigned int             degree = 2;
-  const unsigned int n_initial_refinements = 2;
+  const unsigned int n_initial_refinements = 4;
 
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)

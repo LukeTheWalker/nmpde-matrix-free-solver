@@ -1,6 +1,6 @@
 #include "DTR.hpp"
 
-const char bcs[4] = {'Z', 'N', 'Z', 'N'};
+const char bcs[4] = {'D', 'N', 'D', 'N'};
 
 void DTR::setup(unsigned int n_initial_refinements)
 {
@@ -295,7 +295,6 @@ void DTR::assemble()
     VectorTools::interpolate_boundary_values(dof_handler,
                                              boundary_functions,
                                              boundary_values);
-
     // Finally, we modify the linear system to apply the boundary
     // conditions. This replaces the equations for the boundary DoFs with
     // the corresponding u_i = 0 equations.
