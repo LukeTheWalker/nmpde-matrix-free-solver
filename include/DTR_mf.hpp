@@ -43,7 +43,6 @@ namespace DTR_mf
   using namespace dealii;
 
   // To be efficient matrix-free implementation require knowledge of loop lengths at compile time
-  const unsigned int degree_finite_element = 2;
   const unsigned int dim = 2;
   const char bcs[4] = {'D', 'N', 'D', 'N'}; // left, right, bottom, top
 
@@ -276,13 +275,12 @@ namespace DTR_mf
     Table<2, VectorizedArray<number>> forcing_term_coefficient;
   };
 
-  template <int dim>
+  template <int dim, int degree_finite_element = 2>
   class DTRProblem
   {
   public:
     DTRProblem(bool verbose = true);
     DTRProblem(std::ofstream& dimension_time_file, bool verbose = true);
-
 
     /**
      * @brief Compute the solution of the ADR problem.

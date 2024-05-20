@@ -1,7 +1,6 @@
 #include "DTR_mf.hpp"
 #include <deal.II/base/convergence_table.h>
 #include <filesystem>
-#include <utility>
 
 using namespace dealii;
 using namespace DTR_mf;
@@ -18,6 +17,13 @@ void solve_problem(unsigned int initial_refinements = 5);
  */
 void convergence_study();
 void dimension_time_study();
+
+/**
+ * @brief Evaluate the solver performances for different polynomial degrees.
+ * Many metrics are stored in the polynomial_degree_mf.csv file in the usual output directory, such as the number of dofs,
+ * the number of iterations, and the solver time. For a predefined problem size.
+ */
+void polynomial_degree_study();
 
 int main(int argc, char *argv[])
 {
@@ -37,6 +43,8 @@ int main(int argc, char *argv[])
       convergence_study();
     else if (std::string(argv[1]) == "dimension")
       dimension_time_study();
+    else if (std::string(argv[1]) == "polynomial")
+      polynomial_degree_study();
     else
     {
       if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
@@ -148,8 +156,8 @@ void dimension_time_study()
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
-    dimension_time_file.open("./output_mf/dimension_time_mf.csv");
-    dimension_time_file << "n_dofs,steup+assemble,solve" << std::endl;
+    dimension_time_file.open(output_dir + "dimension_time_mf.csv");
+    dimension_time_file << "n_dofs,setup+assemble,solve,iterations" << std::endl;
   }
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
@@ -161,5 +169,112 @@ void dimension_time_study()
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
     dimension_time_file.close();
+  }
+}
+
+void polynomial_degree_study()
+{
+  std::ofstream file_out;
+
+  constexpr int degree[] = {1, 2, 3, 4, 5, 7, 8, 10}; // fill always with 8 integers
+  const int initial_refinements = 9;
+
+  // Open file and add comments about processes and threads
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    file_out.open(output_dir + "polynomial_degree_mf.csv");
+
+    const unsigned int n_vect_doubles = VectorizedArray<double>::size();
+    const unsigned int n_vect_bits = 8 * sizeof(double) * n_vect_doubles;
+    const unsigned int n_ranks = Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
+
+    file_out << "# Vectorization: " << n_vect_doubles
+          << " doubles = " << n_vect_bits << " bits ("
+          << Utilities::System::get_current_vectorization_level() << ')'
+          << std::endl;
+    file_out << "# Processes:     " << n_ranks << std::endl;
+    file_out << "# Threads:       " << MultithreadInfo::n_threads() << std::endl;
+
+    file_out << "degree,dofs,setup+assemble,solve,iterations" << std::endl;
+  }
+
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    std::cout << "Starting with degree " << degree[0] << std::endl;
+    file_out << degree[0] << ",";
+  }
+  {
+    DTRProblem<2, degree[0]> problem(file_out, false);
+    problem.run(initial_refinements, dim + 1);
+  }
+
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    std::cout << "Starting with degree " << degree[1] << std::endl;
+    file_out << degree[1] << ",";
+  }
+  {
+    DTRProblem<2, degree[1]> problem(file_out, false);
+    problem.run(initial_refinements, dim + 1);
+  }
+
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    std::cout << "Starting with degree " << degree[2] << std::endl;
+    file_out << degree[2] << ",";
+  }
+  {
+    DTRProblem<2, degree[2]> problem(file_out, false);
+    problem.run(initial_refinements, dim + 1);
+  }
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    std::cout << "Starting with degree " << degree[3] << std::endl;
+    file_out << degree[3] << ",";
+  }
+  {
+    DTRProblem<2, degree[3]> problem(file_out, false);
+    problem.run(initial_refinements, dim + 1);
+  }
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    std::cout << "Starting with degree " << degree[4] << std::endl;
+    file_out << degree[4] << ",";
+  }
+  {
+    DTRProblem<2, degree[4]> problem(file_out, false);
+    problem.run(initial_refinements, dim + 1);
+  }
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    std::cout << "Starting with degree " << degree[5] << std::endl;
+    file_out << degree[5] << ",";
+  }
+  {
+    DTRProblem<2, degree[5]> problem(file_out, false);
+    problem.run(initial_refinements, dim + 1);
+  }
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    std::cout << "Starting with degree " << degree[6] << std::endl;
+    file_out << degree[6] << ",";
+  }
+  {
+    DTRProblem<2, degree[6]> problem(file_out, false);
+    problem.run(initial_refinements, dim + 1);
+  }
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    std::cout << "Starting with degree " << degree[7] << std::endl;
+    file_out << degree[7] << ",";
+  }
+  {
+    DTRProblem<2, degree[7]> problem(file_out, false);
+    problem.run(initial_refinements, dim + 1);
+  }
+
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    file_out.close();
   }
 }
