@@ -1,7 +1,5 @@
 #include "DTR.hpp"
 
-const char bcs[4] = {'D', 'N', 'D', 'N'};
-
 void DTR::setup(unsigned int n_initial_refinements)
 {
   pcout << "===============================================" << std::endl;
@@ -16,8 +14,10 @@ void DTR::setup(unsigned int n_initial_refinements)
     // triangulation.
     Triangulation<dim> mesh_serial;
 
-    GridGenerator::hyper_cube(mesh_serial, 0., 1., true);
-    mesh_serial.refine_global(n_initial_refinements - dim);
+    {
+      GridGenerator::hyper_cube(mesh_serial, 0., 1., true);
+      mesh_serial.refine_global(n_initial_refinements - dim);
+    }
 
     // Then, we copy the triangulation into the parallel one.
     {
@@ -44,12 +44,13 @@ void DTR::setup(unsigned int n_initial_refinements)
     pcout << "  Degree                     = " << fe->degree << std::endl;
     pcout << "  DoFs per cell              = " << fe->dofs_per_cell
           << std::endl;
-    quadrature = std::make_unique<QGaussSimplex<dim>>(r + 1);
+
+    quadrature = std::make_unique<QGauss<dim>>(r + 1);
 
     pcout << "  Quadrature points per cell = " << quadrature->size()
           << std::endl;
 
-    quadrature_boundary = std::make_unique<QGaussSimplex<dim - 1>>(r + 1);
+    quadrature_boundary = std::make_unique<QGauss<dim - 1>>(r + 1);
 
     pcout << "  Quadrature points per boundary cell = "
               << quadrature_boundary->size() << std::endl;
@@ -70,6 +71,7 @@ void DTR::setup(unsigned int n_initial_refinements)
 
     pcout << "  Number of DoFs = " << dof_handler.n_dofs() << std::endl;
     time_details << dof_handler.n_dofs() << ',';
+
   }
 
   pcout << "-----------------------------------------------" << std::endl;
@@ -295,6 +297,7 @@ void DTR::assemble()
     VectorTools::interpolate_boundary_values(dof_handler,
                                              boundary_functions,
                                              boundary_values);
+
     // Finally, we modify the linear system to apply the boundary
     // conditions. This replaces the equations for the boundary DoFs with
     // the corresponding u_i = 0 equations.
@@ -302,7 +305,7 @@ void DTR::assemble()
         boundary_values, system_matrix, solution, system_rhs, true);
   }
 
-  setup_time += time.wall_time();
+    setup_time += time.wall_time();
 }
 
 void DTR::solve()
@@ -335,9 +338,10 @@ void DTR::solve()
   pcout << "  " << solver_control.last_step() << " CG iterations" << std::endl;
 
   time_details /*<< "solve time"*/ << Utilities::MPI::min_max_avg(time.wall_time(), MPI_COMM_WORLD).avg << std::endl;
+
 }
 
-/*void DTR::output() const
+void DTR::output() const
 {
   pcout << "===============================================" << std::endl;
 
@@ -370,7 +374,7 @@ void DTR::solve()
   data_out.build_patches();
 
   const std::filesystem::path mesh_path(mesh_file_name);
-  const std::string output_file_name = "output-" + string(mesh.n_global_active_cells());
+  const std::string output_file_name = "output-" + mesh_path.stem().string();
 
   // Finally, we need to write in a format that supports parallel output. This
   // can be achieved in multiple ways (e.g. XDMF/H5). We choose VTU/PVTU files,
@@ -383,13 +387,13 @@ void DTR::solve()
   pcout << "Output written to " << output_file_name << std::endl;
 
   pcout << "===============================================" << std::endl;
-}*/
+}
 
 double
 DTR::compute_error(const VectorTools::NormType &norm_type) const
 {
   FE_Q<dim> fe_linear(1);
-  //MappingQ1<dim> mapping(fe_linear);
+  //MappingFE mapping(fe_linear);
 
   // The error is an integral, and we approximate that integral using a
   // quadrature formula. To make sure we are accurate enough, we use a

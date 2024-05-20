@@ -3,12 +3,15 @@
 
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/quadrature_lib.h>
-#include <deal.II/base/timer.h>
 
 #include <deal.II/distributed/fully_distributed_tria.h>
 
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_tools.h>
+
+/*#include <deal.II/fe/fe_simplex_p.h>
+#include <deal.II/fe/fe_values.h>
+#include <deal.II/fe/mapping_fe.h>*/
 
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_values.h>
@@ -31,6 +34,8 @@
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/vector_tools.h>
+#include <deal.II/base/timer.h>
+
 
 #include <filesystem>
 #include <fstream>
@@ -128,33 +133,16 @@ public:
     value(const Point<dim> & p,
           const unsigned int /*component*/ = 0) const override
     {
-      return (1.) - (2.) * exp(p[0]);
+        return 1. - 2. * exp(p[0]);
     }
   };
 
-  // Dirichlet boundary conditions.
   class DirichletBC1 : public Function<dim>
   {
   public:
-    // Evaluation.
-    virtual double
-    value(const Point<dim> &p,
-          const unsigned int /*component*/ = 0) const override
+    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
     {
-      return (2.)*exp(p[1]) - (1.);   
-    }
-  };
-
-   // Dirichlet boundary conditions.
-  class DirichletBC2 : public Function<dim>
-  {
-  public:
-    // Evaluation.
-    virtual double
-    value(const Point<dim> &p,
-          const unsigned int /*component*/ = 0) const override
-    {
-      return (2.)*exp(p[1]) - (1.);    
+      return 2.*exp(p[1]) - 1.;
     }
   };
 
@@ -163,7 +151,7 @@ public:
   public:
     virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
     {
-      return (2.)*exp(p[0]) * ((2.)*exp(p[1]) - (1.));
+      return 2.*exp(p[0]) - 1.;
     }
   };
 
@@ -172,7 +160,16 @@ public:
   public:
     virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
     {
-      return (2.)*exp(p[1]) * ((2.)*exp(p[0]) - (1.));
+      return 2.*exp(p[0]) * (2.*exp(p[1]) - 1.);
+    }
+  };
+
+  class NeumannBC2 : public Function<dim>
+  {
+  public:
+    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
+    {
+      return 2.*exp(p[1]) * (2.*exp(p[0]) - 1.);
     }
   };
 
@@ -219,7 +216,7 @@ public:
 
   // Initialization.
   void
-  setup(unsigned int n_initial_refinements = 3);
+  setup(unsigned int n_initial_refinements = 8);
 
   // System assembly.
   void
@@ -230,8 +227,8 @@ public:
   solve();
 
   // Output.
-  //void
-  //output() const;
+  void
+  output() const;
 
   // Compute the error.
   double
@@ -265,7 +262,6 @@ protected:
   // Dirichlet boundary conditions.
   DirichletBC1 dirichletBC1;
   DirichletBC2 dirichletBC2;
-  // Neumann boundary conditions.
   NeumannBC1 neumannBC1;
   NeumannBC2 neumannBC2;
 
@@ -304,11 +300,11 @@ protected:
   ConditionalOStream pcout;
   ConditionalOStream time_details;
 
+
   // DoFs owned by current process.
   IndexSet locally_owned_dofs;
 
   double setup_time;
-
 };
 
 #endif
