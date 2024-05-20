@@ -1,6 +1,7 @@
 #include "DTR_mf.hpp"
 #include <deal.II/base/convergence_table.h>
 #include <filesystem>
+#include <utility>
 
 using namespace dealii;
 using namespace DTR_mf;
@@ -16,6 +17,13 @@ void solve_problem(unsigned int initial_refinements = 5);
  * It writes the convergence table both to the /output/convergence_mf.csv file and to the standard output.
  */
 void convergence_study();
+
+/**
+ * @brief Evaluate the solver performances for different polynomial degrees.
+ * Many metrics are stored in the polynomial_degree_mf.csv file in the usual output directory, such as the number of dofs,
+ * the number of iterations, the solver time and MDoFs/s.
+ */
+void polynomial_degree_study()
 
 int main(int argc, char *argv[])
 {
@@ -135,5 +143,40 @@ void convergence_study()
     table.set_precision("H1", 6);
     table.write_text(std::cout);
     convergence_file.close();
+  }
+}
+
+void polynomial_degree_study()
+{
+  std::ofstream file_out;
+
+  // define the range of polynomial degrees to test
+  constexpr int degrees[] = {1, 2, 3};
+
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    file_out.open(output_dir + "/polynomial_degree_mf.csv");
+    file_out << "degree,dofs,iterations,setup,solve,mdofs-s" << std::endl;
+  }
+
+  for (int d : degrees)
+  {
+    if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      std::cout << "Starting with " << d << " degrees...\n";
+
+    DTRProblem<d> problem(false);
+    problem.run(3, dim + 1);
+
+    if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+    {
+      std::cout << "\tFE degree:       " << problem.get_fe_degree() << std::endl;
+      std::cout << "\tNumber of cells: " << problem.get_cells() << std::endl;
+      std::cout << "\tNumber of dofs:  " << problem.get_dofs() << std::endl;
+    }
+  }
+
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    file_out.close();
   }
 }
