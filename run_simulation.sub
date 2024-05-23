@@ -30,5 +30,21 @@ sort ${PBS_NODEFILE} | uniq -c | awk '{ printf("%s\n", $2); }' > mpd.nodes
 
 # Actually run the simulation. The arguments to -n and -npernode should
 # be consistent with the resources requested at the top of the script.
-mpirun -machinefile mpd.nodes -n 40 -npernode 20 \
-	./matrixfree dimension > output_file_matrixfree.txt 2>&1
+
+proc_tot=20
+proc_per_node=20
+
+# Create the output directories
+mkdir output_mf
+mkdir output_mb
+mkdir output_mg
+
+echo =================== >> output_file_mf.txt
+date >> output_file_mf.txt
+echo =================== >> output_file_mf.txt
+
+mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
+./matrixfree dimension >> output_file_mf.txt 2>&1
+
+mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node
+./matrixfree polynomial >> output_file_mf.txt 2>&1
