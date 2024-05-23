@@ -11,11 +11,17 @@ using namespace DTR_mf;
  * @param initial_refinements Number of initial refinements to provide to the run method. Default is 5.
  */
 void solve_problem(unsigned int initial_refinements = 5);
+
 /**
  * @brief Execute a convergence study for the ADR problem, extracting the L2 and H1 errors and the convergence rates.
  * It writes the convergence table both to the /output/convergence_mf.csv file and to the standard output.
  */
 void convergence_study();
+
+/**
+ * @brief Evaluate the solver performances for different number of dofs.
+ * Metrics are stored in the dimension_time_mf.csv file in the usual output directory, such as the number of dofs and the solver time.
+ */
 void dimension_time_study();
 
 /**
@@ -164,7 +170,7 @@ void dimension_time_study()
     std::cout << "Starting with " << refinements << " initial refinements...\n";
 
   DTRProblem<dim> problem(dimension_time_file, false);
-  problem.run(refinements);
+  problem.run(refinements, 10);
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
@@ -176,7 +182,7 @@ void polynomial_degree_study()
 {
   std::ofstream file_out;
 
-  constexpr int degree[] = {1, 2, 3, 4, 5, 7, 8, 10}; // fill always with 8 integers
+  constexpr int degree[] = {1, 2/*, 3, 4, 5, 7, 8, 10*/}; // fill always with 8 integers
   const int initial_refinements = 9;
 
   // Open file and add comments about processes and threads
@@ -218,7 +224,7 @@ void polynomial_degree_study()
     problem.run(initial_refinements, dim + 1);
   }
 
-  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  /*if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
     std::cout << "Starting with degree " << degree[2] << std::endl;
     file_out << degree[2] << ",";
@@ -276,5 +282,5 @@ void polynomial_degree_study()
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
     file_out.close();
-  }
+  }*/
 }

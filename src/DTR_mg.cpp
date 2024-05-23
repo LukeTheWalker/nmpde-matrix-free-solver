@@ -9,22 +9,39 @@ namespace DTR_mg
   DTRProblem<dim>::DTRProblem(unsigned int degree)
       : mpi_communicator(MPI_COMM_WORLD),
         pcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)),
+        time_details(std::cout, false),
         triangulation(mpi_communicator,
                       Triangulation<dim>::limit_level_difference_at_vertices,
                       parallel::distributed::Triangulation<dim>::construct_multigrid_hierarchy),
-        mapping(), fe(degree), dof_handler(triangulation), computing_timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+        mapping(), fe(degree), dof_handler(triangulation)
+  {
+  }
+
+  template <int dim>
+  DTRProblem<dim>::DTRProblem(unsigned int degree, std::ofstream& dimension_time_file)
+      : mpi_communicator(MPI_COMM_WORLD),
+        pcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)),
+        time_details(dimension_time_file, (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)),
+        triangulation(mpi_communicator,
+                      Triangulation<dim>::limit_level_difference_at_vertices,
+                      parallel::distributed::Triangulation<dim>::construct_multigrid_hierarchy),
+        mapping(), fe(degree), dof_handler(triangulation)
   {
   }
 
   template <int dim>
   void DTRProblem<dim>::setup_system()
   {
-    TimerOutput::Scope timing(computing_timer, "Setup");
+    Timer time;
+    setup_time = 0;
 
     dof_handler.distribute_dofs(fe);
 
     locally_relevant_dofs = DoFTools::extract_locally_relevant_dofs(dof_handler);
     locally_owned_dofs = dof_handler.locally_owned_dofs();
+
+    pcout << "  Number of DoFs = " << dof_handler.n_dofs() << std::endl;
+    time_details << dof_handler.n_dofs() << ',';
 
     solution.reinit(locally_owned_dofs, mpi_communicator);
     right_hand_side.reinit(locally_owned_dofs, mpi_communicator);
@@ -51,13 +68,14 @@ namespace DTR_mg
     DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints);
     dsp.compress();
     system_matrix.reinit(dsp);
+
+    setup_time += time.wall_time();
   }
 
   template <int dim>
   void DTRProblem<dim>::setup_multigrid()
   {
-    TimerOutput::Scope timing(computing_timer, "Setup multigrid");
-
+    Timer time;
     dof_handler.distribute_mg_dofs();
 
     mg_constrained_dofs.clear();
@@ -103,13 +121,14 @@ namespace DTR_mg
         mg_interface_in[level].reinit(dsp);
       }
     }
+
+    setup_time += time.wall_time();
   }
 
   template <int dim>
   void DTRProblem<dim>::assemble_system()
   {
-    TimerOutput::Scope timing(computing_timer, "Assemble");
-
+    Timer time;
     const QGauss<dim> quadrature_formula(fe.degree + 1);
     const QGauss<dim - 1> quadrature_boundary(fe.degree + 1);
 
@@ -212,13 +231,14 @@ namespace DTR_mg
       }
     system_matrix.compress(VectorOperation::add);
     right_hand_side.compress(VectorOperation::add);
+
+    setup_time += time.wall_time();
   }
 
   template <int dim>
   void DTRProblem<dim>::assemble_multigrid()
   {
-    TimerOutput::Scope timing(computing_timer, "Assemble multigrid");
-
+    Timer time;
     const QGauss<dim> quadrature_formula(fe.degree + 1);
 
     FEValues<dim> fe_values(fe,
@@ -307,18 +327,17 @@ namespace DTR_mg
       mg_matrix[i].compress(VectorOperation::add);
       mg_interface_in[i].compress(VectorOperation::add);
     }
+
+    setup_time += time.wall_time();
   }
 
   template <int dim>
   void DTRProblem<dim>::solve()
   {
-    TimerOutput::Scope timing(computing_timer, "Solve");
-
+    Timer time;
     SolverControl solver_control(50000, 1e-10 * right_hand_side.l2_norm());
 
     solution = 0.;
-
-    computing_timer.enter_subsection("Solve: Preconditioner setup");
 
     MGTransferPrebuilt<VectorType> mg_transfer(mg_constrained_dofs);
     mg_transfer.build(dof_handler);
@@ -350,38 +369,38 @@ namespace DTR_mg
     PreconditionMG<dim, VectorType, MGTransferPrebuilt<VectorType>>
         preconditioner(dof_handler, mg, mg_transfer);
 
-    computing_timer.leave_subsection("Solve: Preconditioner setup");
-
-    // Timing for 1 V-cycle.
-    {
-      TimerOutput::Scope timing(computing_timer,
-                                "Solve: 1 multigrid V-cycle");
-      preconditioner.vmult(solution, right_hand_side);
-    }
     solution = 0.;
 
-    // Solve the linear system and distribute constraints.
-    {
-      SolverCG<VectorType> solver(solver_control);
+    SolverCG<VectorType> solver(solver_control);
 
-      TimerOutput::Scope timing(computing_timer, "Solve: CG");
-      solver.solve(system_matrix,
+    setup_time += time.wall_time();
+    pcout << "Total setup time               (wall) " << setup_time << "s\n";
+    time_details /*<< "Setup time"*/ <<Utilities::MPI::min_max_avg(setup_time, MPI_COMM_WORLD).avg << ",";
+
+    time.reset();
+    time.start();
+
+    // Solve the linear system and distribute constraints.
+    solver.solve(system_matrix,
                    solution,
                    right_hand_side,
                    preconditioner);
-    }
+    
 
     constraints.distribute(solution);
 
+    pcout << "Time solve (" << solver_control.last_step() << " iterations)"
+          << (solver_control.last_step() < 10 ? "  " : " ") << "(CPU/wall) "
+          << time.cpu_time() << "s/" << time.wall_time() << "s\n";
     pcout << "   Number of CG iterations:      " << solver_control.last_step()
           << std::endl;
+    time_details /*<< "solve time"*/ << Utilities::MPI::min_max_avg(time.wall_time(), MPI_COMM_WORLD).avg << ",";
+    time_details /*<< "iterations"*/ << solver_control.last_step() << std::endl;
   }
 
   template <int dim>
   void DTRProblem<dim>::output_results(const unsigned int cycle)
   {
-    TimerOutput::Scope timing(computing_timer, "Output results");
-
     VectorType temp_solution;
     temp_solution.reinit(locally_owned_dofs,
                          locally_relevant_dofs,
@@ -400,9 +419,30 @@ namespace DTR_mg
   }
 
   template <int dim>
-  void DTRProblem<dim>::run()
+  void DTRProblem<dim>::run(unsigned int n_initial_refinements, unsigned int n_cycles)
   {
-    for (unsigned int cycle = 0; cycle < 9 - dim; ++cycle)
+    // Print processor vectorization, MPI and multi-threading details
+    {
+      const unsigned int n_vect_doubles = VectorizedArray<double>::size();
+      const unsigned int n_vect_bits = 8 * sizeof(double) * n_vect_doubles;
+
+      pcout << "Vectorization over " << n_vect_doubles
+            << " doubles = " << n_vect_bits << " bits ("
+            << Utilities::System::get_current_vectorization_level() << ')'
+            << std::endl;
+      const unsigned int n_ranks = Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
+      pcout << "Running with " << n_ranks << " MPI process"
+            << (n_ranks > 1 ? "es" : "") << ", element " << fe.get_name()
+            << std::endl;
+      pcout << "Using " << MultithreadInfo::n_threads() << " threads per process"
+            << std::endl
+            << std::endl;
+    }
+
+    // must compute at least a solution
+    Assert(n_cycles > dim, ExcMessage("The number of cycles must be at least dim + 1"));
+
+    for (unsigned int cycle = 0; cycle < n_cycles - dim; ++cycle)
     {
       pcout << "Cycle " << cycle << ':' << std::endl;
 
@@ -410,7 +450,7 @@ namespace DTR_mg
       {
         // Generate the cube grid with bound index assignment
         GridGenerator::hyper_cube(triangulation, 0., 1., true);
-        triangulation.refine_global(3 - dim);
+        triangulation.refine_global(n_initial_refinements - dim);
       }
 
       triangulation.refine_global(1);
@@ -429,8 +469,6 @@ namespace DTR_mg
 
       output_results(cycle);
 
-      computing_timer.print_summary();
-      computing_timer.reset();
     }
   }
 }

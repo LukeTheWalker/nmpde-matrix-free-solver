@@ -169,7 +169,8 @@ namespace DTR_mg
       };
 
     DTRProblem(unsigned int degree);
-    void run();
+    DTRProblem(unsigned int degree, std::ofstream& dimension_time_file);
+    void run(unsigned int n_initial_refinements = 3, unsigned int n_cycles = 9);
 
   private:
     using MatrixType = LinearAlgebraTrilinos::MPI::SparseMatrix;
@@ -184,6 +185,9 @@ namespace DTR_mg
 
     MPI_Comm mpi_communicator;
     ConditionalOStream pcout;
+    ConditionalOStream time_details;
+    double setup_time;
+
 
     // p4est triangulation
     parallel::distributed::Triangulation<dim> triangulation;
@@ -215,8 +219,6 @@ namespace DTR_mg
     DirichletBC2 dirichletBC2;
     NeumannBC1 neumannBC1;
     NeumannBC2 neumannBC2;
-
-    TimerOutput computing_timer;
   };
 
 }
