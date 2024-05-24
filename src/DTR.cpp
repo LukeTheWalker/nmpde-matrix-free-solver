@@ -337,7 +337,8 @@ void DTR::solve()
   solver.solve(system_matrix, solution, system_rhs, preconditioner);
   pcout << "  " << solver_control.last_step() << " CG iterations" << std::endl;
 
-  time_details /*<< "solve time"*/ << Utilities::MPI::min_max_avg(time.wall_time(), MPI_COMM_WORLD).avg << std::endl;
+  time_details /*<< "solve time"*/ << Utilities::MPI::min_max_avg(time.wall_time(), MPI_COMM_WORLD).avg << ",";
+  time_details /*<< "iterations"*/ << solver_control.last_step() << std::endl;
 }
 
 void DTR::output() const

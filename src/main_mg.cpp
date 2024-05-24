@@ -5,7 +5,7 @@ using namespace dealii;
 
 /**
  * @brief Evaluate the solver performances for different number of dofs.
- * Metrics are stored in the dimension_time_mf.csv file in the usual output directory, such as the number of dofs and the solver time.
+ * Metrics are stored in the dimension_time_mg.csv file in the usual output directory, such as the number of dofs and the solver time.
  */
 void dimension_time_study();
 
@@ -15,6 +15,14 @@ void dimension_time_study();
  * @param initial_refinements Number of initial refinements to provide to the run method. Default is 5.
  */
 void solve_problem(unsigned int initial_refinements = 5);
+
+/**
+ * @brief Evaluate the solver performances for different polynomial degrees.
+ * Many metrics are stored in the polynomial_degree_mf.csv file in the usual output directory, such as the number of dofs,
+ * the number of iterations, and the solver time. For a predefined problem size.
+ */
+void polynomial_degree_study();
+
 
 int main(int argc, char *argv[])
 {
@@ -30,10 +38,12 @@ int main(int argc, char *argv[])
 			solve_problem(atoi(argv[2]));
 		else if (std::string(argv[1]) == "dimension")
 			dimension_time_study();
+		else if (std::string(argv[1]) == "polynomial")
+      		polynomial_degree_study();
 		else
 		{
 			if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-				std::cerr << "Usage: " << argv[0] << " [ solve | dimension]" << std::endl;
+				std::cerr << "Usage: " << argv[0] << " [ solve | dimension | polynomial]" << std::endl;
 			return 1;
 		}
 	}
@@ -78,24 +88,74 @@ void solve_problem(unsigned int initial_refinements)
 
 void dimension_time_study()
 {
-  std::ofstream dimension_time_file;
+  std::ofstream file_out;
   const unsigned int degree = 2;
   unsigned int refinements = 3;
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
-    dimension_time_file.open(output_dir + "dimension_time_mg.csv");
-    dimension_time_file << "n_dofs,setup+assemble,solve,iterations" << std::endl;
+	const unsigned int n_vect_doubles = VectorizedArray<double>::size();
+    const unsigned int n_vect_bits = 8 * sizeof(double) * n_vect_doubles;
+    const unsigned int n_ranks = Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
+
+	file_out.open(output_dir + "dimension_time_mg_" + std::to_string(n_ranks) + ".csv");
+
+    file_out << "# Vectorization: " << n_vect_doubles
+          << " doubles = " << n_vect_bits << " bits ("
+          << Utilities::System::get_current_vectorization_level() << ')'
+          << std::endl;
+    file_out << "# Processes:     " << n_ranks << std::endl;
+    file_out << "# Threads:       " << MultithreadInfo::n_threads() << std::endl;
+
+	file_out << "n_dofs,setup+assemble,solve,iterations" << std::endl;
   }
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
     std::cout << "Starting with " << refinements << " initial refinements...\n";
 
-  DTRProblem<2> problem(degree, dimension_time_file);
+  DTRProblem<2> problem(degree, file_out);
   problem.run(refinements, 10);
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
-    dimension_time_file.close();
+    file_out.close();
+  }
+}
+
+void polynomial_degree_study()
+{
+  std::ofstream file_out;
+
+  constexpr int degree[] = {1, 2/*, 3, 4, 5, 7, 8, 10*/}; // fill always with 8 integers
+  const int initial_refinements = 9;
+
+  // Open file and add comments about processes and threads
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+    const unsigned int n_vect_doubles = VectorizedArray<double>::size();
+    const unsigned int n_vect_bits = 8 * sizeof(double) * n_vect_doubles;
+    const unsigned int n_ranks = Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
+
+    file_out.open(output_dir + "polynomial_degree_mg_" + std::to_string(n_ranks) + ".csv");
+
+    file_out << "# Vectorization: " << n_vect_doubles
+          << " doubles = " << n_vect_bits << " bits ("
+          << Utilities::System::get_current_vectorization_level() << ')'
+          << std::endl;
+    file_out << "# Processes:     " << n_ranks << std::endl;
+    file_out << "# Threads:       " << MultithreadInfo::n_threads() << std::endl;
+
+    file_out << "degree,dofs,setup+assemble,solve,iterations" << std::endl;
+  }
+
+  for(int d : degree)
+  {
+	if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+	{
+	  std::cout << "Starting with degree " << d << std::endl;
+	  file_out << d << ",";
+	}
+	DTRProblem<2> problem(d, file_out);
+	problem.run(initial_refinements, 2 + 1);
   }
 }

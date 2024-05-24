@@ -157,24 +157,35 @@ void convergence_study()
 
 void dimension_time_study()
 {
-  std::ofstream dimension_time_file;
+  std::ofstream file_out;
   unsigned int refinements = 3;
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
-    dimension_time_file.open(output_dir + "dimension_time_mf.csv");
-    dimension_time_file << "n_dofs,setup+assemble,solve,iterations" << std::endl;
+    const unsigned int n_vect_doubles = VectorizedArray<double>::size();
+    const unsigned int n_vect_bits = 8 * sizeof(double) * n_vect_doubles;
+    const unsigned int n_ranks = Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
+
+    file_out.open(output_dir + "dimension_time_mf_" + std::to_string(n_ranks) + ".csv");
+
+    file_out << "# Vectorization: " << n_vect_doubles
+          << " doubles = " << n_vect_bits << " bits ("
+          << Utilities::System::get_current_vectorization_level() << ')'
+          << std::endl;
+    file_out << "# Processes:     " << n_ranks << std::endl;
+    file_out << "# Threads:       " << MultithreadInfo::n_threads() << std::endl;
+    file_out << "n_dofs,setup+assemble,solve,iterations" << std::endl;
   }
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
     std::cout << "Starting with " << refinements << " initial refinements...\n";
 
-  DTRProblem<dim> problem(dimension_time_file, false);
+  DTRProblem<dim> problem(file_out, false);
   problem.run(refinements, 10);
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
-    dimension_time_file.close();
+    file_out.close();
   }
 }
 
@@ -188,11 +199,11 @@ void polynomial_degree_study()
   // Open file and add comments about processes and threads
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
-    file_out.open(output_dir + "polynomial_degree_mf.csv");
-
     const unsigned int n_vect_doubles = VectorizedArray<double>::size();
     const unsigned int n_vect_bits = 8 * sizeof(double) * n_vect_doubles;
     const unsigned int n_ranks = Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
+
+    file_out.open(output_dir + "polynomial_degree_mf_" + std::to_string(n_ranks) + ".csv");
 
     file_out << "# Vectorization: " << n_vect_doubles
           << " doubles = " << n_vect_bits << " bits ("

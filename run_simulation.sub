@@ -67,8 +67,9 @@ mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
 mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
 ./matrixbased dimension >> output_file.txt 2>&1
 
-#mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
-#./matrixbased polynomial >> output_file.txt 2>&1
+mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
+./matrixbased polynomial >> output_file.txt 2>&1
+
 
 echo "===================" >> output_file.txt
 echo "    Multigrid" >> output_file.txt
@@ -80,5 +81,5 @@ mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
 mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
 ./multigrid dimension >> output_file.txt 2>&1
 
-#mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
-#./multigrid polynomial >> output_file.txt 2>&1
+mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
+./multigrid polynomial >> output_file.txt 2>&1
