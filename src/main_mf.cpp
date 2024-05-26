@@ -113,7 +113,7 @@ void convergence_study()
     convergence_file << "cells,eL2,eH1" << std::endl;
   }
 
-  for (unsigned int refinements = 3; refinements < 7; ++refinements)
+  for (unsigned int refinements = 6; refinements < 11; ++refinements)
   {
     if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       std::cout << "Starting with " << refinements - dim << " initial refinements...\n";
@@ -158,7 +158,7 @@ void convergence_study()
 void dimension_time_study()
 {
   std::ofstream file_out;
-  unsigned int refinements = 3;
+  unsigned int refinements = 9;
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
@@ -181,7 +181,7 @@ void dimension_time_study()
     std::cout << "Starting with " << refinements << " initial refinements...\n";
 
   DTRProblem<dim> problem(file_out, false);
-  problem.run(refinements, 10);
+  problem.run(refinements, 12);
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
@@ -193,8 +193,8 @@ void polynomial_degree_study()
 {
   std::ofstream file_out;
 
-  constexpr int degree[] = {1, 2/*, 3, 4, 5, 7, 8, 10*/}; // fill always with 8 integers
-  const int initial_refinements = 9;
+  constexpr int degree[] = {1, 2, 3, 4, 5, 7, 8, 10}; // fill always with 8 integers
+  const int initial_refinements = 11;
 
   // Open file and add comments about processes and threads
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
@@ -235,7 +235,7 @@ void polynomial_degree_study()
     problem.run(initial_refinements, dim + 1);
   }
 
-  /*if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
     std::cout << "Starting with degree " << degree[2] << std::endl;
     file_out << degree[2] << ",";
@@ -293,5 +293,5 @@ void polynomial_degree_study()
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
     file_out.close();
-  }*/
+  }
 }

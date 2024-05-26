@@ -129,7 +129,7 @@ namespace DTR_mf
     {
       Assert(inverse_diagonal.local_element(i) > 0.,
              ExcMessage("No diagonal entry in a positive definite operator should be zero"));
-      inverse_diagonal.local_element(i) = 1. / inverse_diagonal.local_element(i);
+      inverse_diagonal.local_element(i) = number(1.) / number(inverse_diagonal.local_element(i));
     }
   }
 
@@ -227,7 +227,6 @@ namespace DTR_mf
         dof_handler(triangulation),
         setup_time(0.),
         pcout(std::cout, verbose && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
-        // ! remove the false for the additional output stream for timing
         time_details(dimension_time_file, true && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
   }
@@ -525,7 +524,7 @@ namespace DTR_mf
         preconditioner(dof_handler, mg, mg_transfer);
 
     // Setup the solver
-    SolverControl solver_control(100, 1e-12 * system_rhs.l2_norm());
+    SolverControl solver_control(1000, 1e-12 * system_rhs.l2_norm());
     SolverCG<LinearAlgebra::distributed::Vector<double>> solver(solver_control);
     setup_time += time.wall_time();
     //time_details */<< "MG build smoother time"*/ << time.wall_time() << "s";

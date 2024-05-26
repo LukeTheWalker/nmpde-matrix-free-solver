@@ -90,7 +90,7 @@ void dimension_time_study()
 {
   std::ofstream file_out;
   const unsigned int degree = 2;
-  unsigned int refinements = 3;
+  unsigned int refinements = 9;
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
@@ -114,7 +114,7 @@ void dimension_time_study()
     std::cout << "Starting with " << refinements << " initial refinements...\n";
 
   DTRProblem<2> problem(degree, file_out);
-  problem.run(refinements, 10);
+  problem.run(refinements, 12);
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
@@ -126,7 +126,7 @@ void polynomial_degree_study()
 {
   std::ofstream file_out;
 
-  constexpr int degree[] = {1, 2/*, 3, 4, 5, 7, 8, 10*/}; // fill always with 8 integers
+  constexpr int degree[] = {1, 2, 3, 4, 5, 7, 8, 10}; // fill always with 8 integers
   const int initial_refinements = 9;
 
   // Open file and add comments about processes and threads
@@ -157,5 +157,10 @@ void polynomial_degree_study()
 	}
 	DTRProblem<2> problem(d, file_out);
 	problem.run(initial_refinements, 2 + 1);
+  }
+
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  {
+	file_out.close();
   }
 }

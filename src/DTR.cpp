@@ -316,7 +316,7 @@ void DTR::solve()
 
   // Here we specify the maximum number of iterations of the iterative solver,
   // and its tolerance.
-  SolverControl solver_control(10000, 1e-12 * system_rhs.l2_norm());
+  SolverControl solver_control(50000, 1e-10 * system_rhs.l2_norm());
 
   // The linear solver is basically the same as in serial, in terms of
   // interface: we only have to use appropriate classes, compatible with
