@@ -348,8 +348,8 @@ namespace DTR_mg
     MGCoarseGridIterativeSolver<VectorType,
                                 SolverGMRES<VectorType>,
                                 MatrixType,
-                                LinearAlgebraTrilinos::MPI::PreconditionSSOR>
-        coarse_grid_solver(coarse_solver, mg_matrix[0], identity);
+                                PreconditionIdentity>
+      coarse_grid_solver(coarse_solver, mg_matrix[0], identity);
 
     using Smoother = LinearAlgebraTrilinos::MPI::PreconditionSSOR;
     MGSmootherPrecondition<MatrixType, Smoother, VectorType> smoother;
