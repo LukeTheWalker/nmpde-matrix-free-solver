@@ -1,5 +1,7 @@
 #include "DTR.hpp"
 
+using namespace problem_data;
+
 void DTR::setup(unsigned int n_initial_refinements)
 {
   pcout << "===============================================" << std::endl;
@@ -291,6 +293,7 @@ void DTR::assemble()
 
     std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
+    if (problem_data::bcs[0] != 'D' || problem_data::bcs[2] != 'D') { std::cerr << "Dirichlet boundary conditions are not set correctly" << std::endl; exit(1); }
     boundary_functions[0] = &dirichletBC1;
     boundary_functions[2] = &dirichletBC2;
 
@@ -412,7 +415,7 @@ DTR::compute_error(const VectorTools::NormType &norm_type) const
   VectorTools::integrate_difference(MappingQ1<dim>(),
                                     dof_handler,
                                     solution_ghost,
-                                    ExactSolution(),
+                                    ExactSolution<dim>(),
                                     error_per_cell,
                                     quadrature_error,
                                     norm_type);

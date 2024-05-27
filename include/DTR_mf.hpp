@@ -36,6 +36,8 @@
 #include <iostream>
 #include <fstream>
 
+#include "problem_data.hpp"
+
 const std::string output_dir = "./output_mf/";
 
 namespace DTR_mf
@@ -44,175 +46,18 @@ namespace DTR_mf
 
   // To be efficient matrix-free implementation require knowledge of loop lengths at compile time
   const unsigned int dim = 2;
-  const char bcs[4] = {'D', 'N', 'D', 'N'}; // left, right, bottom, top
-
-  template <int dim>
-  class DiffusionCoefficient : public Function<dim>
-  {
-  public:
-    virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
-    {
-      return value<double>(p, component);
-    }
-
-    template <typename number>
-    number value(const Point<dim, number> & /*p*/, const unsigned int /*component*/ = 0) const
-    {
-      return 1.;
-    }
-  };
-
-  template <int dim>
-  class TransportCoefficient : public Function<dim>
-  {
-  public:
-    virtual void vector_value(const Point<dim> &p, Vector<double> &values) const override
-    {
-      return vector_value<double>(p, values);
-    }
-
-    template <typename number>
-    void vector_value(const Point<dim, number> & /*p*/, Vector<number> &values) const
-    {
-      values[0] = 1.;
-      values[1] = 0.;
-    }
-
-    virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
-    {
-      return value<double>(p, component);
-    }
-
-    template <typename number>
-    number value(const Point<dim, number> & /*p*/, const unsigned int component = 0) const
-    {
-      if (component == 0)
-        return 1.;
-      else
-        return 0.;
-    }
-
-    template <typename number>
-    void tensor_value(const Point<dim, number> & /*p*/, Tensor<1, dim, number> &values) const
-    {
-      values[0] = 1.;
-      values[1] = 0.;
-    }
-  };
-
-  template <int dim>
-  class ReactionCoefficient : public Function<dim>
-  {
-  public:
-    virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
-    {
-      return value<double>(p, component);
-    }
-
-    template <typename number>
-    number value(const Point<dim, number> & /*p*/, const unsigned int /*component*/ = 0) const
-    {
-      return 1.;
-    }
-  };
-
-  template <int dim>
-  class ForcingTerm : public Function<dim>
-  {
-  public:
-    virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
-    {
-      return value<double>(p, component);
-    }
-
-    template <typename number>
-    number value(const Point<dim, number> &p, const unsigned int /*component*/ = 0) const
-    {
-      return number(1.) - number(2.) * exp(p[0]);
-    }
-  };
-
-  // Dirichlet boundary conditions.
-  class DirichletBC1 : public Function<dim>
-  {
-  public:
-    virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
-    {
-      return value<double>(p, component);
-    }
-    template <typename number>
-    double value(const Point<dim, number> & p, const unsigned int /*component*/ = 0) const
-    {
-      return number(2.)*exp(p[1]) - number(1.);
-    }
-  };
-
-  class DirichletBC2 : public Function<dim>
-  {
-  public:
-    virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
-    {
-      return value<double>(p, component);
-    }
-    template <typename number>
-    double value(const Point<dim, number> & p, const unsigned int /*component*/ = 0) const
-    {
-      return number(2.)*exp(p[0]) - number(1.);
-    }
-  };
-
-  class NeumannBC1 : public Function<dim>
-  {
-  public:
-    virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
-    {
-      return value<double>(p, component);
-    }
-
-    template <typename number>
-    number value(const Point<dim, number> &p, const unsigned int /*component*/ = 0) const
-    {
-      return number(2.)*exp(p[0]) * (number(2.)*exp(p[1]) - number(1.));
-    }
-  };
-
-  class NeumannBC2 : public Function<dim>
-  {
-  public:
-    virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
-    {
-      return value<double>(p, component);
-    }
-
-    template <typename number>
-    number value(const Point<dim, number> &p, const unsigned int /*component*/ = 0) const
-    {
-      return number(2.)*exp(p[1]) * (number(2.)*exp(p[0]) - number(1.));
-    }
-  };
-
-  class ExactSolution : public Function<dim>
-  {
-  public:
-    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-    {
-      return (2.*exp(p[0]) - 1.)*(2.*exp(p[1]) - 1.);
-    }
-
-    virtual Tensor<1, dim> gradient(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-    {
-      Tensor<1, dim> result;
-
-      result[0] = 2.*exp(p[0]) * (2.*exp(p[1]) - 1.);
-      result[1] = 2.*exp(p[1]) * (2.*exp(p[0]) - 1.);
-
-      return result;
-    }
-  };
-
-  // The following class implements the DTR linear operation that is needed at each
-  // iteration of the linear solver. The fe_degree template argument is provided to the
-  // FEEvaluation class that needs it for efficiency
+  
+  /**
+   * @brief The DTROperation class implements the DTR linear operation needed at each iteration of the linear solver.
+   *
+   * This class is derived from the MatrixFreeOperators::Base class provided by deal.II.
+   * It is responsible for evaluating the coefficients, computing the diagonal, and applying the linear operation
+   * required by the Conjugate Gradient solver for the DTR problem.
+   *
+   * @tparam dim The dimension of the problem.
+   * @tparam fe_degree The degree of the finite element used.
+   * @tparam number The number type used for the computations.
+   */
   template <int dim, int fe_degree, typename number>
   class DTROperation
       : public MatrixFreeOperators::
@@ -221,48 +66,107 @@ namespace DTR_mf
   public:
     using value_type = number;
 
+    /**
+     * @brief Default constructor.
+     */
     DTROperation();
 
+    /**
+     * @brief Clear the operation.
+     */
     void clear() override;
 
-    void evaluate_coefficients(const DiffusionCoefficient<dim> &diffusion_function,
-                               const TransportCoefficient<dim> &transport_function,
-                               const ReactionCoefficient<dim> &reaction_function,
-                               const ForcingTerm<dim> &forcing_term_function);
+    /**
+     * @brief Evaluate the coefficients of the DTR problem.
+     *
+     * @param diffusion_function The diffusion coefficient function.
+     * @param transport_function The transport coefficient function.
+     * @param reaction_function The reaction coefficient function.
+     * @param forcing_term_function The forcing term function.
+     */
+    void evaluate_coefficients(const problem_data::DiffusionCoefficient<dim> &diffusion_function,
+                               const problem_data::TransportCoefficient<dim> &transport_function,
+                               const problem_data::ReactionCoefficient<dim> &reaction_function,
+                               const problem_data::ForcingTerm<dim> &forcing_term_function);
 
+    /**
+     * @brief Compute the diagonal entries of the matrix.
+     */
     virtual void compute_diagonal() override;
 
+    /**
+     * @brief Get the diffusion coefficient table.
+     *
+     * @return The diffusion coefficient table.
+     */
     const Table<2, VectorizedArray<number>> &get_diffusion_coefficient() const
     {
       return diffusion_coefficient;
     }
 
+    /**
+     * @brief Get the transport coefficient table.
+     *
+     * @return The transport coefficient table.
+     */
     const Table<2, Tensor<1, dim, VectorizedArray<number>>> &get_transport_coefficient() const
     {
       return transport_coefficient;
     }
 
+    /**
+     * @brief Get the reaction coefficient table.
+     *
+     * @return The reaction coefficient table.
+     */
     const Table<2, VectorizedArray<number>> &get_reaction_coefficient() const
     {
       return reaction_coefficient;
     }
 
+    /**
+     * @brief Get the forcing term coefficient table.
+     *
+     * @return The forcing term coefficient table.
+     */
     const Table<2, VectorizedArray<number>> &get_forcing_term_coefficient() const
     {
       return forcing_term_coefficient;
     }
 
   private:
+    /**
+     * @brief Apply the linear operation and add the result to the destination vector.
+     *
+     * @param dst The destination vector.
+     * @param src The source vector.
+     */
     virtual void apply_add(
         LinearAlgebra::distributed::Vector<number> &dst,
         const LinearAlgebra::distributed::Vector<number> &src) const override;
 
+    /**
+     * @brief Apply the local linear operation on a range of cells.
+     *
+     * @param data The MatrixFree object containing the data.
+     * @param dst The destination vector.
+     * @param src The source vector.
+     * @param cell_range The range of cells to operate on.
+     */
     void
     local_apply(const MatrixFree<dim, number> &data,
                 LinearAlgebra::distributed::Vector<number> &dst,
                 const LinearAlgebra::distributed::Vector<number> &src,
                 const std::pair<unsigned int, unsigned int> &cell_range) const;
 
+    /**
+     * @brief Compute the local diagonal entries of the matrix on a range of cells.
+     *
+     * @param data The MatrixFree object containing the data.
+     * @param dst The destination vector for the diagonal entries.
+     * @param dummy A dummy argument (not used).
+     * @param cell_range The range of cells to operate on.
+     */
     void local_compute_diagonal(
         const MatrixFree<dim, number> &data,
         LinearAlgebra::distributed::Vector<number> &dst,
@@ -275,34 +179,103 @@ namespace DTR_mf
     Table<2, VectorizedArray<number>> forcing_term_coefficient;
   };
 
+  /**
+   * @brief The DTRProblem class represents the DTR problem and provides methods to solve it.
+   *
+   * This class encapsulates the setup, assembly, solution, and output of the DTR problem.
+   *
+   * @tparam dim The dimension of the problem.
+   * @tparam degree_finite_element The degree of the finite element used (default is 2).
+   */
   template <int dim, int degree_finite_element = 2>
   class DTRProblem
   {
   public:
+    /**
+     * @brief Constructor for the DTRProblem class.
+     *
+     * @param verbose A flag indicating whether to print verbose output (default is true).
+     */
     DTRProblem(bool verbose = true);
+
+    /**
+     * @brief Constructor for the DTRProblem class with a dimension-time file output stream.
+     *
+     * @param dimension_time_file An output stream for writing dimension and time information.
+     * @param verbose A flag indicating whether to print verbose output (default is true).
+     */
     DTRProblem(std::ofstream& dimension_time_file, bool verbose = true);
 
     /**
-     * @brief Compute the solution of the ADR problem.
-     * It executes the setup, rhs assembly, solve, and output_results steps for the solution of the problem
-     * for a given number of times.
-     * The given number of initial refinements determines the number of cells in the mesh at the first solution
-     * as initial number of cells = dim^(initial_refinements-dim).
-     * The number of executed cycles is n_cycles - dim.
-     * @param n_initial_refinements the number of initial refinements to perform on the mesh.
-     * @param n_cycles the number of solutions to compute adding a refinement at each iteration.
+     * @brief Compute the solution of the DTR problem.
+     *
+     * This method executes the setup, right-hand side assembly, solution, and output steps
+     * for the DTR problem for a given number of times. The number of initial refinements
+     * determines the number of cells in the mesh at the first solution, and the number of
+     * executed cycles determines the number of additional refinements performed.
+     *
+     * @param n_initial_refinements The number of initial refinements to perform on the mesh.
+     * @param n_cycles The number of solutions to compute by adding a refinement at each iteration.
      */
     void run(unsigned int n_initial_refinements = 3, unsigned int n_cycles = 9);
+
+    /**
+     * @brief Compute the error of the solution using the given norm type.
+     *
+     * @param norm_type The norm type to use for computing the error.
+     * @return The computed error.
+     */
     double compute_error(const VectorTools::NormType &norm_type) const;
 
+    /**
+     * @brief Get the number of global active cells in the triangulation.
+     *
+     * @return The number of global active cells.
+     */
     unsigned int get_cells() const { return triangulation.n_global_active_cells(); }
+
+    /**
+     * @brief Get the number of degrees of freedom.
+     *
+     * @return The number of degrees of freedom.
+     */
     unsigned int get_dofs() const { return dof_handler.n_dofs(); }
+
+    /**
+     * @brief Get the degree of the finite element.
+     *
+     * @return The degree of the finite element.
+     */
     unsigned int get_fe_degree() const { return degree_finite_element; }
 
   private:
+    /**
+     * @brief Set up the system for solving the DTR problem.
+     *
+     * This method initializes the triangulation, degree of freedom handler, constraints,
+     * system matrix, multigrid constraints, and multigrid matrices.
+     */
     void setup_system();
+
+    /**
+     * @brief Assemble the right-hand side of the DTR problem.
+     *
+     * This method computes the right-hand side vector for the linear system.
+     */
     void assemble_rhs();
+
+    /**
+     * @brief Solve the DTR problem using the Conjugate Gradient method.
+     *
+     * This method solves the linear system using the Conjugate Gradient solver.
+     */
     void solve();
+
+    /**
+     * @brief Output the results of the DTR problem for the given cycle.
+     *
+     * @param cycle The cycle number for which to output the results.
+     */
     void output_results(const unsigned int cycle) const;
 
 #ifdef DEAL_II_WITH_P4EST
@@ -311,33 +284,101 @@ namespace DTR_mf
     Triangulation<dim> triangulation;
 #endif
 
+    /**
+     * @brief The finite element used for the DTR problem.
+     */
     FE_Q<dim> fe;
+
+    /**
+     * @brief The degree of freedom handler for the DTR problem.
+     */
     DoFHandler<dim> dof_handler;
 
-    // Mapping with polynomial degree=1
+    /**
+     * @brief The mapping used for the DTR problem (polynomial degree 1).
+     */
     MappingQ1<dim> mapping;
 
+    /**
+     * @brief The affine constraints for the DTR problem.
+     */
     AffineConstraints<double> constraints;
+
+    /**
+     * @brief The system matrix type for the DTR problem.
+     */
     using SystemMatrixType =
         DTROperation<dim, degree_finite_element, double>;
+
+    /**
+     * @brief The system matrix for the DTR problem.
+     */
     SystemMatrixType system_matrix;
 
+    /**
+     * @brief The multigrid constrained degrees of freedom for the DTR problem.
+     */
     MGConstrainedDoFs mg_constrained_dofs;
+
+    /**
+     * @brief The level matrix type for the DTR problem.
+     */
     using LevelMatrixType = DTROperation<dim, degree_finite_element, float>;
+
+    /**
+     * @brief The multigrid level matrices for the DTR problem.
+     */
     MGLevelObject<LevelMatrixType> mg_matrices;
 
+    /**
+     * @brief The solution vector for the DTR problem.
+     */
     LinearAlgebra::distributed::Vector<double> solution;
+
+    /**
+     * @brief The lifting vector for the DTR problem.
+     */
     LinearAlgebra::distributed::Vector<double> lifting;
+
+    /**
+     * @brief The right-hand side vector for the DTR problem.
+     */
     LinearAlgebra::distributed::Vector<double> system_rhs;
 
+    /**
+     * @brief The time taken for system setup.
+     */
     double setup_time;
+
+    /**
+     * @brief A conditional output stream for printing information.
+     */
     ConditionalOStream pcout;
+
+    /**
+     * @brief A conditional output stream for printing time details.
+     */
     ConditionalOStream time_details;
 
-    DirichletBC1 dirichletBC1;
-    DirichletBC2 dirichletBC2;
-    NeumannBC1 neumannBC1;
-    NeumannBC2 neumannBC2;
+    /**
+     * @brief The object representing the Dirichlet boundary condition 1.
+     */
+    problem_data::DirichletBC1<dim> dirichletBC1;
+
+    /**
+     * @brief The object representing the Dirichlet boundary condition 2.
+     */
+    problem_data::DirichletBC2<dim> dirichletBC2;
+
+    /**
+     * @brief The object representing the Neumann boundary condition 1.
+     */
+    problem_data::NeumannBC1<dim> neumannBC1;
+
+    /**
+     * @brief The object representing the Neumann boundary condition 2.
+     */
+    problem_data::NeumannBC2<dim> neumannBC2;
   };
 }
 

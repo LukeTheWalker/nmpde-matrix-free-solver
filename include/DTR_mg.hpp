@@ -43,132 +43,18 @@
 
 const std::string output_dir = "./output_mg/";
 
+#include "problem_data.hpp"
+
 using namespace dealii;
 
 namespace DTR_mg
 {
-
-  const char bcs[4] = {'Z', 'N', 'Z', 'N'};
 
   // This is the main class of the program.
   template <int dim>
   class DTRProblem
   {
   public:
-    class DiffusionCoefficient : public Function<dim>
-    {
-    public:
-      virtual double
-      value(const Point<dim> & /*p*/,
-            const unsigned int /*component*/ = 0) const override
-      {
-        // EXAM: DIFFUSION COEFFICIENT
-        return 1.;
-      }
-    };
-
-    // Transport coefficient.
-    class TransportCoefficient : public Function<dim>
-    {
-    public:
-      virtual void
-      vector_value(const Point<dim> & /*p*/,
-                   Vector<double> &values) const override
-      {
-        values[0] = 1.;
-        values[1] = 0.;
-      }
-
-      virtual double
-      value(const Point<dim> & /*p*/,
-            const unsigned int component = 0) const override
-      {
-        if (component == 0)
-          return 1.;
-        else
-          return 0.;
-      }
-    };
-
-    // Reaction coefficient.
-    class ReactionCoefficient : public Function<dim>
-    {
-    public:
-      virtual double
-      value(const Point<dim> & /*p*/,
-            const unsigned int /*component*/ = 0) const override
-      {
-        return 1.;
-      }
-    };
-
-    // Forcing term.
-    class ForcingTerm : public Function<dim>
-    {
-    public:
-      virtual double
-      value(const Point<dim> &p,
-            const unsigned int /*component*/ = 0) const override
-      {
-        return 1. - 2. * exp(p[0]);
-      }
-    };
-
-    class DirichletBC1 : public Function<dim>
-    {
-    public:
-      virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-      {
-        return 2.*exp(p[1]) - 1.;
-      }
-    };
-
-    class DirichletBC2 : public Function<dim>
-    {
-    public:
-      virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-      {
-        return 2.*exp(p[0]) - 1.;
-      }
-    };
-
-    class NeumannBC1 : public Function<dim>
-    {
-    public:
-      virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-      {
-        return 2.*exp(p[0]) * (2.*exp(p[1]) - 1.);
-      }
-    };
-
-    class NeumannBC2 : public Function<dim>
-    {
-    public:
-      virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-      {
-        return 2.*exp(p[1]) * (2.*exp(p[0]) - 1.);
-      }
-    };
-
-    class ExactSolution : public Function<dim>
-    {
-      public:
-        virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-        {
-          return (2.*exp(p[0]) - 1.)*(2.*exp(p[1]) - 1.);
-        }
-
-        virtual Tensor<1, dim> gradient(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-        {
-          Tensor<1, dim> result;
-
-          result[0] = 2.*exp(p[0]) * (2.*exp(p[1]) - 1.);
-          result[1] = 2.*exp(p[1]) * (2.*exp(p[0]) - 1.);
-
-          return result;
-        }
-      };
-
     DTRProblem(unsigned int degree);
     DTRProblem(unsigned int degree, std::ofstream& dimension_time_file);
     void run(unsigned int n_initial_refinements = 3, unsigned int n_cycles = 9);
@@ -211,15 +97,15 @@ namespace DTR_mg
     MGConstrainedDoFs mg_constrained_dofs;
 
     // Coefficients and forcing term
-    DiffusionCoefficient diffusion_coefficient;
-    ReactionCoefficient reaction_coefficient;
-    TransportCoefficient transport_coefficient;
-    ForcingTerm forcing_term;
+    problem_data::DiffusionCoefficient<dim> diffusion_coefficient;
+    problem_data::TransportCoefficient<dim> transport_coefficient;
+    problem_data::ReactionCoefficient<dim> reaction_coefficient;
+    problem_data::ForcingTerm<dim> forcing_term;
 
-    DirichletBC1 dirichletBC1;
-    DirichletBC2 dirichletBC2;
-    NeumannBC1 neumannBC1;
-    NeumannBC2 neumannBC2;
+    problem_data::DirichletBC1<dim> dirichletBC1;
+    problem_data::DirichletBC2<dim> dirichletBC2;
+    problem_data::NeumannBC1<dim> neumannBC1;
+    problem_data::NeumannBC2<dim> neumannBC2;
   };
 
 }

@@ -25,10 +25,10 @@ namespace DTR_mf
 
   template <int dim, int fe_degree, typename number>
   void DTROperation<dim, fe_degree, number>::evaluate_coefficients(
-      const DiffusionCoefficient<dim> &diffusion_function,
-      const TransportCoefficient<dim> &transport_function,
-      const ReactionCoefficient<dim> &reaction_function,
-      const ForcingTerm<dim> &forcing_term_function)
+      const problem_data::DiffusionCoefficient<dim> &diffusion_function,
+      const problem_data::TransportCoefficient<dim> &transport_function,
+      const problem_data::ReactionCoefficient<dim> &reaction_function,
+      const problem_data::ForcingTerm<dim> &forcing_term_function)
   {
     const unsigned int n_cells = this->data->n_cell_batches();
     FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number> fe_eval(*this->data);
@@ -262,7 +262,7 @@ namespace DTR_mf
     Functions::ZeroFunction<dim> zero_function;
     std::map<types::boundary_id, const Function<dim> *> boundary_functions;
     for (unsigned int i = 0; i < 4; ++i)
-      if (bcs[i] == 'D' || bcs[i] == 'Z')
+      if (problem_data::bcs[i] == 'D' || problem_data::bcs[i] == 'Z')
         boundary_functions[i] = &zero_function;
     VectorTools::interpolate_boundary_values(mapping,
                                              dof_handler,
@@ -300,10 +300,10 @@ namespace DTR_mf
     }
 
     // Evaluate the coefficients on each cell and dof, save them in Tables
-    system_matrix.evaluate_coefficients(DiffusionCoefficient<dim>(),
-                                        TransportCoefficient<dim>(),
-                                        ReactionCoefficient<dim>(),
-                                        ForcingTerm<dim>());
+    system_matrix.evaluate_coefficients(problem_data::DiffusionCoefficient<dim>(),
+                                        problem_data::TransportCoefficient<dim>(),
+                                        problem_data::ReactionCoefficient<dim>(),
+                                        problem_data::ForcingTerm<dim>());
 
     system_matrix.initialize_dof_vector(solution);
     system_matrix.initialize_dof_vector(lifting);
@@ -319,7 +319,7 @@ namespace DTR_mf
     // Set all the Dirichlet BC to homogeneous ones
     std::set<types::boundary_id> dirichlet_boundary_ids;
     for (unsigned int i = 0; i < 4; ++i)
-      if (bcs[i] == 'D' || bcs[i] == 'Z')
+      if (problem_data::bcs[i] == 'D' || problem_data::bcs[i] == 'Z')
         dirichlet_boundary_ids.emplace(i);
     // MGConstrainedDoFs keeps indices subject to BCs and indices on edges between
     // different refinement levels
@@ -358,10 +358,10 @@ namespace DTR_mf
                                     mg_constrained_dofs,
                                     level);
 
-      mg_matrices[level].evaluate_coefficients(DiffusionCoefficient<dim>(),
-                                               TransportCoefficient<dim>(),
-                                               ReactionCoefficient<dim>(),
-                                               ForcingTerm<dim>());
+      mg_matrices[level].evaluate_coefficients(problem_data::DiffusionCoefficient<dim>(),
+                                               problem_data::TransportCoefficient<dim>(),
+                                               problem_data::ReactionCoefficient<dim>(),
+                                               problem_data::ForcingTerm<dim>());
     }
     setup_time += time.wall_time();
     //time_details /*<< "Setup matrix-free levels"*/ << time.wall_time() << 's';
@@ -638,7 +638,7 @@ namespace DTR_mf
     VectorTools::integrate_difference(MappingQ1<dim>(),
                                       dof_handler,
                                       solution,
-                                      ExactSolution(),
+                                      problem_data::ExactSolution<dim>(),
                                       error_per_cell,
                                       QGauss<dim>(fe.degree + 2),
                                       norm_type);

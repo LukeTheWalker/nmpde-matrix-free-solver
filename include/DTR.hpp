@@ -41,6 +41,8 @@
 #include <fstream>
 #include <iostream>
 
+#include "problem_data.hpp"
+
 static const std::string output_dir = "./output_mb/";
 
 using namespace dealii;
@@ -53,145 +55,6 @@ class DTR
 public:
   // Physical dimension (1D, 2D, 3D)
   static constexpr unsigned int dim = 2;
-
-  // Diffusion coefficient.
-  // In deal.ii, functions are implemented by deriving the dealii::Function
-  // class, which provides an interface for the computation of function values
-  // and their derivatives.
-  class DiffusionCoefficient : public Function<dim>
-  {
-  public:
-    // Constructor.
-    DiffusionCoefficient()
-    {}
-
-    // Evaluation.
-    virtual double
-    value(const Point<dim> &/*p*/,
-          const unsigned int /*component*/ = 0) const override
-    {
-      // EXAM: DIFFUSION COEFFICIENT
-      return 1.;
-    }
-  };
-
-  // Transport coefficient.
-  class TransportCoefficient : public Function<dim>
-  {
-  public:
-    // Constructor.
-    TransportCoefficient()
-    {}
-
-   virtual void
-    vector_value(const Point<dim> & /*p*/,
-                 Vector<double> &values) const override
-    {
-      values[0] = 1.;
-      values[1] = 0.;
-    }
-
-    virtual double
-    value(const Point<dim> & /*p*/,
-          const unsigned int component = 0) const override
-    {
-        if (component == 0)
-            return 1.;
-        else
-            return 0.;
-    }
-  };
-
-  // Reaction coefficient.
-  class ReactionCoefficient : public Function<dim>
-  {
-  public:
-    // Constructor.
-    ReactionCoefficient()
-    {}
-
-    // Evaluation.
-    virtual double
-    value(const Point<dim> &/*p*/,
-          const unsigned int /*component*/ = 0) const override
-    {
-      // EXAM: REACTION COEFFICIENT
-      return 1.;
-    }
-  };
-
-  // Forcing term.
-  class ForcingTerm : public Function<dim>
-  {
-  public:
-    // Constructor.
-    ForcingTerm()
-    {}
-
-    // Evaluation.
-    virtual double
-    value(const Point<dim> & p,
-          const unsigned int /*component*/ = 0) const override
-    {
-        return 1. - 2. * exp(p[0]);
-    }
-  };
-
-  class DirichletBC1 : public Function<dim>
-  {
-  public:
-    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-    {
-      return 2.*exp(p[1]) - 1.;
-    }
-  };
-
-  class DirichletBC2 : public Function<dim>
-  {
-  public:
-    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-    {
-      return 2.*exp(p[0]) - 1.;
-    }
-  };
-
-  class NeumannBC1 : public Function<dim>
-  {
-  public:
-    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-    {
-      return 2.*exp(p[0]) * (2.*exp(p[1]) - 1.);
-    }
-  };
-
-  class NeumannBC2 : public Function<dim>
-  {
-  public:
-    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-    {
-      return 2.*exp(p[1]) * (2.*exp(p[0]) - 1.);
-    }
-  };
-
-  // Exact solution.
-  class ExactSolution : public Function<dim>
-  {
-  public:
-    virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-    {
-      return (2.*exp(p[0]) - 1.)*(2.*exp(p[1]) - 1.);
-    }
-
-    virtual Tensor<1, dim> gradient(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
-    {
-      Tensor<1, dim> result;
-
-      result[0] = 2.*exp(p[0]) * (2.*exp(p[1]) - 1.);
-      result[1] = 2.*exp(p[1]) * (2.*exp(p[0]) - 1.);
-
-      return result;
-    }
-  };
 
   // Constructor.
   DTR(const unsigned int &r_, std::ofstream& dimension_time_file)
@@ -248,22 +111,22 @@ protected:
   const unsigned int mpi_rank;
 
   // Diffusion coefficient.
-  DiffusionCoefficient diffusion_coefficient;
+  problem_data::DiffusionCoefficient<dim> diffusion_coefficient;
 
   // Reaction coefficient.
-  ReactionCoefficient reaction_coefficient;
+  problem_data::ReactionCoefficient<dim> reaction_coefficient;
 
   // Transport coefficient.
-  TransportCoefficient transport_coefficient;
+  problem_data::TransportCoefficient<dim> transport_coefficient;
 
   // Forcing term.
-  ForcingTerm forcing_term;
+  problem_data::ForcingTerm<dim> forcing_term;
 
   // Dirichlet boundary conditions.
-  DirichletBC1 dirichletBC1;
-  DirichletBC2 dirichletBC2;
-  NeumannBC1 neumannBC1;
-  NeumannBC2 neumannBC2;
+  problem_data::DirichletBC1<dim> dirichletBC1;
+  problem_data::DirichletBC2<dim> dirichletBC2;
+  problem_data::NeumannBC1<dim> neumannBC1;
+  problem_data::NeumannBC2<dim> neumannBC2;
 
   // Triangulation. The parallel::fullydistributed::Triangulation class manages
   // a triangulation that is completely distributed (i.e. each process only

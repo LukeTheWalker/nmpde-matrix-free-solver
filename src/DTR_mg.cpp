@@ -53,6 +53,7 @@ namespace DTR_mg
 
     std::map<types::boundary_id, const Function<dim> *> dirichlet_boundary_functions;
 
+    if (problem_data::bcs[0] != 'D' || problem_data::bcs[2] != 'D') { std::cerr << "Dirichlet boundary conditions are not set correctly" << std::endl; exit(1); }
     dirichlet_boundary_functions[0] = &dirichletBC1;
     dirichlet_boundary_functions[2] = &dirichletBC2;
 
@@ -197,7 +198,7 @@ namespace DTR_mg
                ++face_number)
           {
             if (cell->face(face_number)->at_boundary() &&
-                bcs[cell->face(face_number)->boundary_id()] == 'N')
+                problem_data::bcs[cell->face(face_number)->boundary_id()] == 'N')
             {
               fe_values_boundary.reinit(cell, face_number);
 
