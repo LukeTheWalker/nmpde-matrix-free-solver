@@ -15,11 +15,6 @@
 source ~/.bashrc
 
 
-# Load the modules that you need
-module load gcc-glibc/11.2.0
-module load dealii
-
-
 # Start the job in the current directory (PBS starts in the home folder)
 cd ${PBS_O_WORKDIR}
 
@@ -47,11 +42,10 @@ echo "=========================================" >> output_file.txt
 echo "    Matrixfree" >> output_file.txt
 echo "===================" >> output_file.txt
 
-mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
-./matrixfree solve >> output_file.txt 2>&1
-
-mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
-./matrixfree dimension >> output_file.txt 2>&1
+for proc in 1 4 8 12 16 20; do
+  mpirun -machinefile mpd.nodes -n $proc -npernode $proc \
+  ./matrixfree dimension >> output_file.txt 2>&1
+done
 
 mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
 ./matrixfree polynomial >> output_file.txt 2>&1
@@ -61,11 +55,10 @@ echo "===================" >> output_file.txt
 echo "    Matrixbased" >> output_file.txt
 echo "===================" >> output_file.txt
 
-mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
-./matrixbased solve >> output_file.txt 2>&1
-
-mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
-./matrixbased dimension >> output_file.txt 2>&1
+for proc in 1 4 8 12 16 20; do
+  mpirun -machinefile mpd.nodes -n $proc -npernode $proc \
+  ./matrixbased dimension >> output_file.txt 2>&1
+done
 
 mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
 ./matrixbased polynomial >> output_file.txt 2>&1
@@ -75,11 +68,10 @@ echo "===================" >> output_file.txt
 echo "    Multigrid" >> output_file.txt
 echo "===================" >> output_file.txt
 
-mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
-./multigrid solve >> output_file.txt 2>&1
-
-mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
-./multigrid dimension >> output_file.txt 2>&1
+for proc in 1 4 8 12 16 20; do
+  mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
+  ./multigrid dimension >> output_file.txt 2>&1
+done
 
 mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
 ./multigrid polynomial >> output_file.txt 2>&1
