@@ -127,7 +127,7 @@ void polynomial_degree_study()
   std::ofstream file_out;
 
   constexpr int degree[] = {1, 2, 3, 4, 5, 7, 8, 10}; // fill always with 8 integers
-  const int initial_refinements = 9;
+  const int initial_refinements = 11;
 
   // Open file and add comments about processes and threads
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
