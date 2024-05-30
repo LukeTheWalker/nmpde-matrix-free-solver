@@ -193,7 +193,7 @@ namespace DTR_mf
   //    convergence of the geometric multigrid routines.
   // - For the distributed grid we need to specifically enable the multigrid hierarchy
   template <int dim, int degree_finite_element>
-  DTRProblem<dim, degree_finite_element>::DTRProblem(bool verbose)
+  DTRProblem<dim, degree_finite_element>::DTRProblem(bool verbose_)
 #ifdef DEAL_II_WITH_P4EST
       : triangulation(MPI_COMM_WORLD,
                       Triangulation<dim>::limit_level_difference_at_vertices,
@@ -208,12 +208,13 @@ namespace DTR_mf
         setup_time(0.),
         pcout(std::cout, verbose && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
         // ! remove the false for the additional output stream for timing
-        time_details(std::cout, false && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+        time_details(std::cout, false && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
+        verbose(verbose_)
   {
   }
 
   template <int dim, int degree_finite_element>
-  DTRProblem<dim, degree_finite_element>::DTRProblem(std::ofstream& dimension_time_file, bool verbose)
+  DTRProblem<dim, degree_finite_element>::DTRProblem(std::ofstream& dimension_time_file, bool verbose_)
 #ifdef DEAL_II_WITH_P4EST
       : triangulation(MPI_COMM_WORLD,
                       Triangulation<dim>::limit_level_difference_at_vertices,
@@ -227,7 +228,8 @@ namespace DTR_mf
         dof_handler(triangulation),
         setup_time(0.),
         pcout(std::cout, verbose && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
-        time_details(dimension_time_file, true && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+        time_details(dimension_time_file, true && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
+        verbose(verbose_)
   {
   }
 
@@ -622,7 +624,7 @@ namespace DTR_mf
       setup_system();
       assemble_rhs();
       solve();
-      output_results(cycle);
+      if(verbose) output_results(cycle);
       pcout << std::endl;
     };
   }

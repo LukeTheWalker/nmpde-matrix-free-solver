@@ -158,7 +158,7 @@ void convergence_study()
 void dimension_time_study()
 {
   std::ofstream file_out;
-  unsigned int refinements = 9;
+  unsigned int refinements = 8;
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {
@@ -175,13 +175,12 @@ void dimension_time_study()
     file_out << "# Processes:     " << n_ranks << std::endl;
     file_out << "# Threads:       " << MultithreadInfo::n_threads() << std::endl;
     file_out << "n_dofs,setup+assemble,solve,iterations" << std::endl;
+
+    std::cout << "Starting test with " << refinements << " initial refinements...\n";
   }
 
-  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-    std::cout << "Starting with " << refinements << " initial refinements...\n";
-
   DTRProblem<dim> problem(file_out, false);
-  problem.run(refinements, 12);
+  problem.run(refinements, 8);
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {

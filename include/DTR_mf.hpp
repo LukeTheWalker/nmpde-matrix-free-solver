@@ -361,6 +361,11 @@ namespace DTR_mf
     ConditionalOStream time_details;
 
     /**
+     * @brief Verbosity of the solver for logging and vtu output.
+     */
+    bool verbose;
+
+    /**
      * @brief The object representing the Dirichlet boundary condition 1.
      */
     problem_data::DirichletBC1<dim> dirichletBC1;

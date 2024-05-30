@@ -6,26 +6,26 @@ namespace DTR_mg
 {
 
   template <int dim>
-  DTRProblem<dim>::DTRProblem(unsigned int degree)
+  DTRProblem<dim>::DTRProblem(unsigned int degree, bool verbose_)
       : mpi_communicator(MPI_COMM_WORLD),
         pcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)),
         time_details(std::cout, false),
         triangulation(mpi_communicator,
                       Triangulation<dim>::limit_level_difference_at_vertices,
                       parallel::distributed::Triangulation<dim>::construct_multigrid_hierarchy),
-        mapping(), fe(degree), dof_handler(triangulation)
+        mapping(), fe(degree), dof_handler(triangulation), verbose(verbose_)
   {
   }
 
   template <int dim>
-  DTRProblem<dim>::DTRProblem(unsigned int degree, std::ofstream& dimension_time_file)
+  DTRProblem<dim>::DTRProblem(unsigned int degree, bool verbose_, std::ofstream& dimension_time_file)
       : mpi_communicator(MPI_COMM_WORLD),
         pcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)),
         time_details(dimension_time_file, (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)),
         triangulation(mpi_communicator,
                       Triangulation<dim>::limit_level_difference_at_vertices,
                       parallel::distributed::Triangulation<dim>::construct_multigrid_hierarchy),
-        mapping(), fe(degree), dof_handler(triangulation)
+        mapping(), fe(degree), dof_handler(triangulation), verbose(verbose_)
   {
   }
 
@@ -466,7 +466,7 @@ namespace DTR_mg
 
       solve();
 
-      output_results(cycle);
+      if(verbose) output_results(cycle);
 
     }
   }

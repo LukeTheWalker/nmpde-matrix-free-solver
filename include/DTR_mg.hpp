@@ -55,8 +55,8 @@ namespace DTR_mg
   class DTRProblem
   {
   public:
-    DTRProblem(unsigned int degree);
-    DTRProblem(unsigned int degree, std::ofstream& dimension_time_file);
+    DTRProblem(unsigned int degree, bool verbose = true);
+    DTRProblem(unsigned int degree, bool verbose, std::ofstream& dimension_time_file);
     void run(unsigned int n_initial_refinements = 3, unsigned int n_cycles = 9);
 
   private:
@@ -95,6 +95,8 @@ namespace DTR_mg
     MGLevelObject<MatrixType> mg_matrix;
     MGLevelObject<MatrixType> mg_interface_in;
     MGConstrainedDoFs mg_constrained_dofs;
+
+    bool verbose;
 
     // Coefficients and forcing term
     problem_data::DiffusionCoefficient<dim> diffusion_coefficient;

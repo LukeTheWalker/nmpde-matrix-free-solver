@@ -160,7 +160,7 @@ void dimension_time_study()
 {
   std::ofstream file_out;
   const unsigned int degree = 2;
-  const unsigned int n_initial_refinements = 4;
+  const unsigned int n_initial_refinements = 5;
 
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
