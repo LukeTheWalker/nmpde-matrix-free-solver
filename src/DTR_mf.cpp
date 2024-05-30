@@ -206,7 +206,7 @@ namespace DTR_mf
         fe(degree_finite_element),
         dof_handler(triangulation),
         setup_time(0.),
-        pcout(std::cout, verbose && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
+        pcout(std::cout, verbose_ && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
         // ! remove the false for the additional output stream for timing
         time_details(std::cout, false && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
         verbose(verbose_)
@@ -227,7 +227,7 @@ namespace DTR_mf
         fe(degree_finite_element),
         dof_handler(triangulation),
         setup_time(0.),
-        pcout(std::cout, verbose && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
+        pcout(std::cout, verbose_ && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
         time_details(dimension_time_file, true && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0),
         verbose(verbose_)
   {
