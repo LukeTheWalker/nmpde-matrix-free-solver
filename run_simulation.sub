@@ -2,7 +2,7 @@
 #PBS -S /bin/bash
 
 
-#PBS -l nodes=2:ppn=20,walltime=1:00:00 -q gigat
+#PBS -l nodes=2:ppn=20,walltime=10:00:00 -q gigat
 #PBS -N matrix_free
 
 
@@ -42,7 +42,8 @@ echo "=========================================" >> output_file.txt
 echo "    Matrixfree" >> output_file.txt
 echo "===================" >> output_file.txt
 
-for proc in 1 4 8 12 16 20; do
+for proc in 2 6 10 14 18 20
+do
   mpirun -machinefile mpd.nodes -n $proc -npernode $proc \
   ./matrixfree dimension >> output_file.txt 2>&1
 done
@@ -55,7 +56,8 @@ echo "===================" >> output_file.txt
 echo "    Matrixbased" >> output_file.txt
 echo "===================" >> output_file.txt
 
-for proc in 1 4 8 12 16 20; do
+for proc in 2 6 10 14 18 20
+do
   mpirun -machinefile mpd.nodes -n $proc -npernode $proc \
   ./matrixbased dimension >> output_file.txt 2>&1
 done
@@ -68,7 +70,8 @@ echo "===================" >> output_file.txt
 echo "    Multigrid" >> output_file.txt
 echo "===================" >> output_file.txt
 
-for proc in 1 4 8 12 16 20; do
+for proc in 2 6 10 14 18 20
+do
   mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
   ./multigrid dimension >> output_file.txt 2>&1
 done
