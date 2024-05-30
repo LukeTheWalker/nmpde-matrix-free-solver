@@ -9,10 +9,6 @@
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_tools.h>
 
-/*#include <deal.II/fe/fe_simplex_p.h>
-#include <deal.II/fe/fe_values.h>
-#include <deal.II/fe/mapping_fe.h>*/
-
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_values.h>
 #include <deal.II/fe/mapping_q1.h>
@@ -48,25 +44,20 @@ static const std::string output_dir = "./output_mb/";
 using namespace dealii;
 
 /**
- * Class managing the differential problem.
+ * @class DTR
+ * @brief Class managing the differential problem.
  */
 class DTR
 {
 public:
-  // Physical dimension (1D, 2D, 3D)
+  /// @brief Physical dimension (1D, 2D, 3D)
   static constexpr unsigned int dim = 2;
 
-  // Constructor.
-  DTR(const unsigned int &r_, std::ofstream& dimension_time_file)
-    : r(r_)
-    , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
-    , mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
-    , mesh(MPI_COMM_WORLD)
-    , pcout(std::cout, true && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-    , time_details(dimension_time_file, true && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-    , setup_time(0.)
-  {}
-
+  /**
+   * @brief Constructor.
+   * 
+   * @param r_ Polynomial degree.
+   */
   DTR(const unsigned int &r_)
     : r(r_)
     , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
@@ -77,96 +68,127 @@ public:
     , setup_time(0.)
   {}
 
-  // Initialization.
-  void
-  setup(unsigned int n_initial_refinements = 8);
+  /**
+   * @brief Constructor used to print the time details to a file.
+   * 
+   * @param r_ Polynomial degree.
+   * @param dimension_time_file Output file stream for time details.
+   */  
+  DTR(const unsigned int &r_, std::ofstream& dimension_time_file)
+    : r(r_)
+    , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
+    , mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
+    , mesh(MPI_COMM_WORLD)
+    , pcout(std::cout, true && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+    , time_details(dimension_time_file, true && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+    , setup_time(0.)
+  {}
 
-  // System assembly.
-  void
-  assemble();
+  /**
+   * @brief Initialization.
+   * 
+   * Sets up the problem by initializing the mesh, finite element space, DoF handler,
+   * and linear system.
+   * 
+   * @param n_initial_refinements Number of initial refinements.
+   */
+  void setup(unsigned int n_initial_refinements = 8);
 
-  // System solution.
-  void
-  solve();
+  /// @brief System assembly.
+  void assemble();
 
-  // Output.
-  void
-  output() const;
+  /// @brief System solution.
+  void solve();
 
-  // Compute the error.
-  double
-  compute_error(const VectorTools::NormType &norm_type) const;
+  /// @brief Output.
+  void output() const;
+
+  /**
+   * @brief Compute the error.
+   * 
+   * @param norm_type Norm type.
+   * @return double Computed error.
+   */
+  double compute_error(const VectorTools::NormType &norm_type) const;
 
 protected:
-  // Path to the mesh file.
+  /// @brief Path to the mesh file.
   const std::string mesh_file_name;
 
-  // Polynomial degree.
+  /// @brief Polynomial degree.
   const unsigned int r;
 
-  // Number of MPI processes.
+  /// @brief Number of MPI processes.
   const unsigned int mpi_size;
 
-  // This MPI process.
+  /// @brief This MPI process.
   const unsigned int mpi_rank;
 
-  // Diffusion coefficient.
+  /// @brief Diffusion coefficient.
   problem_data::DiffusionCoefficient<dim> diffusion_coefficient;
 
-  // Reaction coefficient.
+  /// @brief Reaction coefficient.
   problem_data::ReactionCoefficient<dim> reaction_coefficient;
 
-  // Transport coefficient.
+  /// @brief Transport coefficient.
   problem_data::TransportCoefficient<dim> transport_coefficient;
 
-  // Forcing term.
+  /// @brief Forcing term.
   problem_data::ForcingTerm<dim> forcing_term;
 
-  // Dirichlet boundary conditions.
+  /// @brief Dirichlet boundary conditions.
   problem_data::DirichletBC1<dim> dirichletBC1;
   problem_data::DirichletBC2<dim> dirichletBC2;
   problem_data::NeumannBC1<dim> neumannBC1;
   problem_data::NeumannBC2<dim> neumannBC2;
 
-  // Triangulation. The parallel::fullydistributed::Triangulation class manages
-  // a triangulation that is completely distributed (i.e. each process only
-  // knows about the elements it owns and its ghost elements).
+  /**
+   * @brief Triangulation
+   * 
+   * The parallel::fullydistributed::Triangulation class manages
+   * a triangulation that is completely distributed (i.e. each process only
+   * knows about the elements it owns and its ghost elements).
+   */
   parallel::fullydistributed::Triangulation<dim> mesh;
 
-  // Finite element space.
+  /// @brief Finite element space.
   // We use a unique_ptr here so that we can choose the type and degree of the
   // finite elements at runtime (the degree is a constructor parameter). The
   // class FiniteElement<dim> is an abstract class from which all types of
   // finite elements implemented by deal.ii inherit.
   std::unique_ptr<FiniteElement<dim>> fe;
 
-  // Quadrature formula.
+  /// @brief Quadrature formula.
   // We use a unique_ptr here so that we can choose the type and order of the
   // quadrature formula at runtime (the order is a constructor parameter).
   std::unique_ptr<Quadrature<dim>> quadrature;
 
+  /// @brief Quadrature formula for the boundary.
   std::unique_ptr<Quadrature<dim - 1>> quadrature_boundary;
 
-  // DoF handler.
+  /// @brief DoF handler.
   DoFHandler<dim> dof_handler;
 
-  // System matrix.
+  /// @brief System matrix.
   TrilinosWrappers::SparseMatrix system_matrix;
 
-  // System right-hand side.
+  /// @brief System right-hand side.
   TrilinosWrappers::MPI::Vector system_rhs;
 
-  // System solution.
+  /// @brief System solution.
   TrilinosWrappers::MPI::Vector solution;
 
-  // Parallel output stream.
+  /// @brief Parallel output stream.
   ConditionalOStream pcout;
+
+  /// @brief Time details parallel output stream.
   ConditionalOStream time_details;
 
 
-  // DoFs owned by current process.
+  /// @brief DoFs owned by current process.
   IndexSet locally_owned_dofs;
 
+  /// @brief duration of the setup phase
   double setup_time;
 };
 

@@ -5,6 +5,7 @@ using namespace problem_data;
 void DTR::setup(unsigned int n_initial_refinements)
 {
   pcout << "===============================================" << std::endl;
+  // Timer to measure the setup time.
   Timer time;
   setup_time = 0;
 
@@ -12,8 +13,7 @@ void DTR::setup(unsigned int n_initial_refinements)
   {
     pcout << "Initializing the mesh" << std::endl;
 
-    // First we read the mesh from file into a serial (i.e. not parallel)
-    // triangulation.
+    // We first create a serial mesh, and refine it globally a few times.
     Triangulation<dim> mesh_serial;
 
     {
@@ -183,9 +183,6 @@ void DTR::assemble()
     {
       // Here we assemble the local contribution for current cell and
       // current quadrature point, filling the local matrix and vector.
-
-      // Here we iterate over *local* DoF indices.
-
       Vector<double> b_loc(dim);
 
       transport_coefficient.vector_value(fe_values.quadrature_point(q), b_loc);
@@ -290,7 +287,6 @@ void DTR::assemble()
 
     // Then, we build a map that, for each boundary tag, stores the
     // corresponding boundary function.
-
     std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
     if (problem_data::bcs[0] != 'D' || problem_data::bcs[2] != 'D') { std::cerr << "Dirichlet boundary conditions are not set correctly" << std::endl; exit(1); }
