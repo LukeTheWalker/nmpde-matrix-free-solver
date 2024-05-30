@@ -136,7 +136,7 @@ protected:
   /// @brief Forcing term.
   problem_data::ForcingTerm<dim> forcing_term;
 
-  /// @brief Dirichlet boundary conditions.
+  /// @brief boundary conditions.
   problem_data::DirichletBC1<dim> dirichletBC1;
   problem_data::DirichletBC2<dim> dirichletBC2;
   problem_data::NeumannBC1<dim> neumannBC1;
