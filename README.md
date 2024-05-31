@@ -1,7 +1,8 @@
 # Matrix-free solver for the Advection-Diffusion-Reaction problem
 This project implements a matrix-free solver for advection-diffusion-reaction (ADR) problems. It then compare the performance of the matrix-free solver with that of a matrix-based solver, in terms of computational efficiency, parallel scalability and complexity of the implementation.
+The matrixfree solver implements a Geometric MultiGrid preconditioner with Chebyshev iteration being a good fit for a matrixfree implementation since it only needs the computation of the diagonal.
 
-This solver is based on the [deal.II library](https://github.com/dealii/dealii), specifically on its [step-37](https://www.dealii.org/current/doxygen/deal.II/step_37.html) tutorial program.
+This solver is based on the [deal.II library](https://github.com/dealii/dealii), mainly but not only on its [step-37](https://www.dealii.org/current/doxygen/deal.II/step_37.html) tutorial for the matrixfree solver and on other tutorials for the implementation of the matrixbased comparison.
 
 The report for this project can be found here (TODO).
 
