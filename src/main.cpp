@@ -179,7 +179,7 @@ void dimension_time_study()
     file_out << "# Processes:     " << n_ranks << std::endl;
     file_out << "# Threads:       " << 1 << std::endl;
 
-    file_out << "n_dofs,steup+assemble,solve,iterations" << std::endl;
+    file_out << "n_dofs,setup+assemble,solve,iterations" << std::endl;
   }
 
   for (unsigned int cycle = 0; cycle < 7; ++cycle)

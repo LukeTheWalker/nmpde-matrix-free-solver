@@ -12,16 +12,16 @@ import seaborn as sns
 
 # Function to extract the number of processes from the filename
 def extract_proc(filepath):
-    match = re.search(r'_([^_]*)\.csv', filepath)
-    if match:
-        return match.group(1)
-    else:
-        return None
+	match = re.search(r'_([^_]*)\.csv', filepath)
+	if match:
+		return int(match.group(1))
+	else:
+		return None
 
 # If no filename passed, exit
 if len(sys.argv) < 2:
 	print("Usage: python plotter.py <plot_type> [basepath]")
-	print("<plot_type>\tdimension, scalability")
+	print("<plot_type>\tstrong, weak, polynomial")
 	print("[basepath]\toptional path to the directory containing the output files (default: current directory)")
 	print("\t\tbasepath must have: output_mf, output_mb, output_mg directories containing the .csv files")
 	exit()
@@ -32,6 +32,10 @@ else:
 	basepath = path.abspath(".")
 
 print("Base directory: ", basepath)
+
+# Make directory for the plots if it doesn't exist
+if not os.path.exists(os.path.join(".", "plots")):
+	os.makedirs(os.path.join(".", "plots"))
 
 # Name of the output directories as out + put for put in put_types
 out = "output_"
@@ -58,6 +62,10 @@ for put in put_types:
 
 	# Concatenate the dataframes
 	df_dim[put] = pd.concat(data, ignore_index=True)
+	# Correct eventual errors in the column number of setup+assemble time
+	if 'steup+assemble' in df_dim[put].columns:
+		df_dim[put].rename(columns={'steup+assemble': 'setup+assemble'}, inplace=True)
+	
 	print(df_dim[put].info())
 
 	## Polynomial degree data
@@ -69,44 +77,53 @@ for put in put_types:
 
 
 
-'''
-# Set the font size
-sns.set_theme(font_scale = 1.3)
 
-# Compose the title from the comments
-title = ""
-description = "("
-with open(filepath, 'r') as f:
-	title = f.readline()[1:].strip().replace('_', ' ').capitalize()
-	for line in f:
-		if line[0] == '#':
-			description += line[1:].strip() + ", "
-	description = description[:-2] + ")"
+# ====== Plot for strong scaling ======
+#	Plot the solve time as a function of the number of processes for the largest two values of n_dofs
+#	for each of the solvers, with the ideal scaling reference.
+#	Then do the same for the setup+assemble time.
+if "strong" in sys.argv[1]:
+	print("Plotting strong scaling")
+	# Solve time as a function of the number of processes all in one plot for a single n_dof
+	for time_type in ("solve", "setup+assemble"):
+		fig, ax = plt.subplots()
+		for put in put_types:
+			df = df_dim[put]
+			# Sort the data by the number of processes
+			df = df.sort_values(by='proc')
+			# Get the largest two values of n_dofs and plot them
+			for dof_value in df['n_dofs'].drop_duplicates(inplace=False).nlargest(2).tolist():
+				df1 = df[df['n_dofs'] == dof_value]
+				# Compose the label
+				lab = put + " (" + str(round(dof_value/1e6, 1)) + "M DoFs)"
+				ax.plot(df1['proc'], df1[time_type], label=lab, marker='o', linestyle='-.')
 
+		#Plot ideal scaling
+		proc = df['proc']
+		solve = df[time_type]
+		ax.plot(proc, 1e2*solve[0] / proc, label="Ideal scaling", linestyle='--', color='black')
+		ax.set_xlabel("Number of processors")
+		ax.set_ylabel(time_type + " time (s)")
+		ax.set_yscale('log')
+		ax.grid(True, which="both", ls="--")
+		ax.set_xticks(df['proc'].unique())
+		ax.set_title("Strong scaling for " + time_type + " time")
+		ax.legend()
+		plt.savefig(os.path.join(".", "plots", "strong_" + time_type + ".png"))
+		print("Strong scaling plot saved in", os.path.join(".", "plots", "strong_" + time_type + ".png"))
 
-sns.set_style("darkgrid")
-ax = None
-
-'''
-
-# ====== Plot for dimension ======
-if sys.argv[1] == "dimension":
-	print("Plotting dimension")
 
 # ====== Plot for polynomial ======
-elif sys.argv[1] == "polynomial":
+if "polynomial" in sys.argv[1]:
 	print("Plotting polynomial")
 
 
 # ====== If the plot type is not recognized ======
-else:
-	print("Plot type not supported.")
+if all(s not in sys.argv[1] for s in ("strong", "polynomial")):
+	print("Plot type not supported!!!!!")
+	print("Run without arguments to see the usage")
 	exit()
 
 
-# Make directory for the plots if it doesn't exist
-if not os.path.exists(os.path.join(".", "plots")):
-	os.makedirs(os.path.join(".", "plots"))
-
 # Save the plot in the output directory
-plt.savefig(os.path.join(".", "plots", "filename-----" + ".png"))
+
