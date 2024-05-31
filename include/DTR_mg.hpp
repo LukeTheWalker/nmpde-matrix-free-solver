@@ -49,15 +49,13 @@ using namespace dealii;
 
 namespace DTR_mg
 {
-
   /**
-   * @class DTRProblem
-   * @brief Main class of the program managing the differential problem using multigrid.
-   * 
-   * This class handles the setup, assembly, solution, and output of the differential problem
-   * using multigrid.
-   * 
-   * @tparam dim Dimension of the problem.
+   * @brief The main class of the program.
+   *
+   * This class manages the setup, assembly, solution, and output for the multigrid solver 
+   * applied to a differential problem using the deal.II library.
+   *
+   * @tparam dim The spatial dimension of the problem.
    */
   template <int dim>
   class DTRProblem
@@ -65,25 +63,26 @@ namespace DTR_mg
   public:
     /**
      * @brief Constructor.
-     * 
-     * @param degree Polynomial degree of the finite elements.
+     *
+     * @param degree The polynomial degree of the finite element basis functions.
      */
-    DTRProblem(unsigned int degree, bool verbose = true);
-    
+    DTRProblem(unsigned int degree);
+
     /**
-     * @brief Constructor with output file stream for time details.
-     * 
-     * @param degree Polynomial degree of the finite elements.
-     * @param dimension_time_file Output file stream for time details.
+     * @brief Constructor with a file stream for timing information.
+     *
+     * @param degree The polynomial degree of the finite element basis functions.
+     * @param dimension_time_file Output file stream for logging timing information.
      */
-    DTRProblem(unsigned int degree, bool verbose, std::ofstream& dimension_time_file);
-    
+    DTRProblem(unsigned int degree, std::ofstream& dimension_time_file);
+
     /**
-     * @brief Run the simulation starting from the initial refinements and for 
-     * a number of cycles equal to n_cycles-dim.
-     * 
-     * @param n_initial_refinements Number of initial refinements.
-     * @param n_cycles Number of cycles.
+     * @brief Run the problem.
+     *
+     * This function executes the entire process from setup to output.
+     *
+     * @param n_initial_refinements Number of initial mesh refinements.
+     * @param n_cycles Number of cycles for the multigrid method.
      */
     void run(unsigned int n_initial_refinements = 3, unsigned int n_cycles = 9);
 
@@ -91,101 +90,171 @@ namespace DTR_mg
     using MatrixType = LinearAlgebraTrilinos::MPI::SparseMatrix;
     using VectorType = LinearAlgebraTrilinos::MPI::Vector;
 
-    /// @brief Setup the system.
+    /**
+     * @brief Setup the system.
+     *
+     * This function initializes the triangulation, DoF handler, and system matrices.
+     */
     void setup_system();
 
-    /// @brief Setup the multigrid hierarchy.
+    /**
+     * @brief Setup the multigrid method.
+     *
+     * This function initializes the multigrid hierarchy and associated matrices.
+     */
     void setup_multigrid();
 
-    /// @brief Assemble the system matrix and right-hand side.
+    /**
+     * @brief Assemble the system matrix and right-hand side vector.
+     */
     void assemble_system();
 
-    /// @brief Assemble the multigrid hierarchy.
+    /**
+     * @brief Assemble the multigrid levels.
+     */
     void assemble_multigrid();
 
-    /// @brief Solve the system.
+    /**
+     * @brief Solve the linear system.
+     */
     void solve();
 
-    /// @brief Output the results.
+    /**
+     * @brief Output the results to a file.
+     *
+     * @param cycle The current cycle number in the multigrid method.
+     */
     void output_results(const unsigned int cycle);
-
-    /// @brief MPI communicator.
+    /**
+     * @brief Communicator for parallel execution. 
+     */
     MPI_Comm mpi_communicator;
 
-    /// @brief Parallel output stream.
+    /**
+     * @brief A conditional output stream for parallel execution.
+     */
     ConditionalOStream pcout;
-    
-    /// @brief Time details parallel output stream.
+
+    /**
+     * @brief A conditional output stream for logging timing details.
+     */
     ConditionalOStream time_details;
 
-    /// @brief duration of the setup phase
+    /**
+     * @brief Time taken for setup.
+     */
     double setup_time;
 
-
-    // p4est triangulation
+    /**
+     * @brief Parallel distributed triangulation.
+     */
     parallel::distributed::Triangulation<dim> triangulation;
 
-    /// @brief Mapping.
+    /**
+     * @brief Mapping for the finite element space.
+     */
     const MappingQ1<dim> mapping;
 
-    /// @brief Finite element space.
+    /**
+     * @brief Finite element space.
+     */
     const FE_Q<dim> fe;
 
-    /// @brief DoF handler.
+    /**
+     * @brief DoF handler for managing degrees of freedom.
+     */
     DoFHandler<dim> dof_handler;
 
-    /// @brief DoFs owned by current process.
+    /**
+     * @brief Index set for locally owned DoFs.
+     */
     IndexSet locally_owned_dofs;
 
-    /// @brief DoFs relevant to current process.
+    /**
+     * @brief Index set for locally relevant DoFs.
+     */
     IndexSet locally_relevant_dofs;
 
-    /// @brief Affine constraints.
+    /**
+     * @brief Affine constraints for the linear system.
+     */
     AffineConstraints<double> constraints;
 
-    /// @brief System matrix.
+    /**
+     * @brief System matrix.
+     */
     MatrixType system_matrix;
 
-    /// @brief System solution.
+    /**
+     * @brief Solution vector.
+     */
     VectorType solution;
 
-    /// @brief System right-hand side.
+    /**
+     * @brief Right-hand side vector.
+     */
     VectorType right_hand_side;
 
-    /// @brief Vectors to store error square estimator per cell.
+    /**
+     * @brief Vector storing estimated error per cell.
+     */
     Vector<double> estimated_error_square_per_cell;
 
-    /// @brief Matrix for different levels of the multigrid hierarchy.
+    /**
+     * @brief Multigrid level matrices.
+     */
     MGLevelObject<MatrixType> mg_matrix;
 
-    /// @brief interface matrix coupling different levels.
+    /**
+     * @brief Multigrid interface matrices.
+     */
     MGLevelObject<MatrixType> mg_interface_in;
 
-    /// @brief constrained dofs at a level of multigrid solver.
+    /**
+     * @brief Multigrid constrained DoFs.
+     */
     MGConstrainedDoFs mg_constrained_dofs;
 
-    /// @brief boolean controlling whether to output result.
-    bool verbose;
-
-    /// @brief Diffusion coefficient.
+    /**
+     * @brief Diffusion coefficient.
+     */
     problem_data::DiffusionCoefficient<dim> diffusion_coefficient;
 
-    /// @brief Transport coefficient.
+    /**
+     * @brief Transport coefficient.
+     */
     problem_data::TransportCoefficient<dim> transport_coefficient;
 
-    /// @brief Reaction coefficient.
+    /**
+     * @brief Reaction coefficient.
+     */
     problem_data::ReactionCoefficient<dim> reaction_coefficient;
 
-    /// @brief Forcing term.
+    /**
+     * @brief Forcing term.
+     */
     problem_data::ForcingTerm<dim> forcing_term;
 
-    /// @brief boundary conditions.
+    /**
+     * @brief The object representing the Dirichlet boundary condition at the left boundary.
+     */
     problem_data::DirichletBC1<dim> dirichletBC1;
+
+    /**
+     * @brief The object representing the Dirichlet boundary condition at the bottom boundary.
+     */
     problem_data::DirichletBC2<dim> dirichletBC2;
+
+    /**
+     * @brief The object representing the Neumann boundary condition at the right boundary.
+     */
     problem_data::NeumannBC1<dim> neumannBC1;
+
+    /**
+     * @brief The object representing the Neumann boundary condition at the top boundary.
+     */
     problem_data::NeumannBC2<dim> neumannBC2;
   };
-
 }
 
 #include "DTR_mg.cpp"

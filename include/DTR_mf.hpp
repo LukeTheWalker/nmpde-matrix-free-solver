@@ -295,7 +295,7 @@ namespace DTR_mf
     DoFHandler<dim> dof_handler;
 
     /**
-     * @brief The mapping used for the DTR problem (polynomial degree 1).
+     * @brief The mapping used for the DTR problem.
      */
     MappingQ1<dim> mapping;
 
@@ -361,27 +361,22 @@ namespace DTR_mf
     ConditionalOStream time_details;
 
     /**
-     * @brief Verbosity of the solver for logging and vtu output.
-     */
-    bool verbose;
-
-    /**
-     * @brief The object representing the Dirichlet boundary condition 1.
+     * @brief The object representing the Dirichlet boundary condition at boundary 0.
      */
     problem_data::DirichletBC1<dim> dirichletBC1;
 
     /**
-     * @brief The object representing the Dirichlet boundary condition 2.
+     * @brief The object representing the Dirichlet boundary condition at boundary 2.
      */
     problem_data::DirichletBC2<dim> dirichletBC2;
 
     /**
-     * @brief The object representing the Neumann boundary condition 1.
+     * @brief The object representing the Neumann boundary condition at boundary 1.
      */
     problem_data::NeumannBC1<dim> neumannBC1;
 
     /**
-     * @brief The object representing the Neumann boundary condition 2.
+     * @brief The object representing the Neumann boundary condition at boundary 3.
      */
     problem_data::NeumannBC2<dim> neumannBC2;
   };

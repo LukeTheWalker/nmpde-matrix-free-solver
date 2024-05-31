@@ -32,7 +32,6 @@
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/base/timer.h>
 
-
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -44,151 +43,187 @@ static const std::string output_dir = "./output_mb/";
 using namespace dealii;
 
 /**
- * @class DTR
  * @brief Class managing the differential problem.
+ *
+ * This class handles the setup, assembly, solution, and output of a differential problem 
+ * using the deal.II library. It supports parallel computation using MPI.
  */
 class DTR
 {
 public:
-  /// @brief Physical dimension (1D, 2D, 3D)
+  /// Physical dimension (1D, 2D, 3D)
   static constexpr unsigned int dim = 2;
 
   /**
-   * @brief Constructor.
-   * 
-   * @param r_ Polynomial degree.
+   * @brief Constructor with a file stream for timing information.
+   *
+   * @param r_ Polynomial degree of the finite element basis functions.
+   * @param dimension_time_file Output file stream for logging timing information.
    */
-  DTR(const unsigned int &r_)
-    : r(r_)
-    , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
-    , mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
-    , mesh(MPI_COMM_WORLD)
-    , pcout(std::cout, true && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-    , time_details(std::cout, false && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-    , setup_time(0.)
-  {}
+  DTR(const unsigned int &r_, std::ofstream& dimension_time_file);
 
   /**
-   * @brief Constructor used to print the time details to a file.
-   * 
-   * @param r_ Polynomial degree.
-   * @param dimension_time_file Output file stream for time details.
-   */  
-  DTR(const unsigned int &r_, std::ofstream& dimension_time_file)
-    : r(r_)
-    , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
-    , mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
-    , mesh(MPI_COMM_WORLD)
-    , pcout(std::cout, true && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-    , time_details(dimension_time_file, true && Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-    , setup_time(0.)
-  {}
+   * @brief Constructor without a file stream for timing information.
+   *
+   * @param r_ Polynomial degree of the finite element basis functions.
+   */
+  DTR(const unsigned int &r_);
 
   /**
-   * @brief Initialization.
-   * 
-   * Sets up the problem by initializing the mesh, finite element space, DoF handler,
-   * and linear system.
-   * 
-   * @param n_initial_refinements Number of initial refinements.
+   * @brief Initialization of the system.
+   *
+   * This function sets up the triangulation, DoF handler, and system matrices.
+   *
+   * @param n_initial_refinements Number of initial mesh refinements.
    */
   void setup(unsigned int n_initial_refinements = 8);
 
-  /// @brief System assembly.
+  /**
+   * @brief Assembly of the system matrix and right-hand side vector.
+   */
   void assemble();
 
-  /// @brief System solution.
+  /**
+   * @brief Solution of the linear system.
+   */
   void solve();
 
-  /// @brief Output.
+  /**
+   * @brief Output of the solution to a file.
+   *
+   * This function writes the solution to a VTK file for visualization.
+   */
   void output() const;
 
   /**
-   * @brief Compute the error.
-   * 
-   * @param norm_type Norm type.
-   * @return double Computed error.
+   * @brief Compute the error of the solution.
+   *
+   * This function computes the error of the numerical solution with respect to an exact solution.
+   *
+   * @param norm_type The type of norm to use for error computation.
+   * @return The computed error.
    */
   double compute_error(const VectorTools::NormType &norm_type) const;
 
 protected:
-  /// @brief Path to the mesh file.
+  /** 
+   * @brief Path to the mesh file.
+   */
   const std::string mesh_file_name;
 
-  /// @brief Polynomial degree.
+  /**
+   * @brief Polynomial degree.
+   */
   const unsigned int r;
 
-  /// @brief Number of MPI processes.
+  /**
+   * @brief Number of MPI processes.
+   */
   const unsigned int mpi_size;
 
-  /// @brief This MPI process.
+  /**
+   * @brief Rank of this MPI process.
+   */
   const unsigned int mpi_rank;
 
-  /// @brief Diffusion coefficient.
+  /**
+   * @brief Diffusion coefficient.
+   */
   problem_data::DiffusionCoefficient<dim> diffusion_coefficient;
 
-  /// @brief Reaction coefficient.
+  /**
+   * @brief Reaction coefficient.
+   */
   problem_data::ReactionCoefficient<dim> reaction_coefficient;
 
-  /// @brief Transport coefficient.
+  /**
+   * @brief Transport coefficient.
+   */
   problem_data::TransportCoefficient<dim> transport_coefficient;
 
-  /// @brief Forcing term.
+  /**
+   * @brief Forcing term.
+   */
   problem_data::ForcingTerm<dim> forcing_term;
 
-  /// @brief boundary conditions.
+  /**
+   * @brief Dirichlet boundary conditions for the left and bottom boundaries.
+   */
   problem_data::DirichletBC1<dim> dirichletBC1;
+
+  /**
+   * @brief Dirichlet boundary conditions for the right and top boundaries.
+   */
   problem_data::DirichletBC2<dim> dirichletBC2;
+
+  /**
+   * @brief Neumann boundary conditions for the right and top boundaries.
+   */
   problem_data::NeumannBC1<dim> neumannBC1;
+
+  /**
+   * @brief Neumann boundary conditions for the left and bottom boundaries.
+   */
   problem_data::NeumannBC2<dim> neumannBC2;
 
   /**
-   * @brief Triangulation
-   * 
-   * The parallel::fullydistributed::Triangulation class manages
-   * a triangulation that is completely distributed (i.e. each process only
-   * knows about the elements it owns and its ghost elements).
+   * @brief Triangulation object for managing the mesh.
    */
   parallel::fullydistributed::Triangulation<dim> mesh;
 
-  /// @brief Finite element space.
-  // We use a unique_ptr here so that we can choose the type and degree of the
-  // finite elements at runtime (the degree is a constructor parameter). The
-  // class FiniteElement<dim> is an abstract class from which all types of
-  // finite elements implemented by deal.ii inherit.
+  /**
+   * @brief Finite element space.
+   */
   std::unique_ptr<FiniteElement<dim>> fe;
 
-  /// @brief Quadrature formula.
-  // We use a unique_ptr here so that we can choose the type and order of the
-  // quadrature formula at runtime (the order is a constructor parameter).
+  /**
+   * @brief Quadrature formula for integration.
+   */
   std::unique_ptr<Quadrature<dim>> quadrature;
 
-  /// @brief Quadrature formula for the boundary.
+  /**
+   * @brief Quadrature formula for boundary integration.
+   */
   std::unique_ptr<Quadrature<dim - 1>> quadrature_boundary;
 
-  /// @brief DoF handler.
+  /**
+   * @brief DoF handler for managing degrees of freedom.
+   */
   DoFHandler<dim> dof_handler;
 
-  /// @brief System matrix.
+  /**
+   * @brief System matrix.
+   */
   TrilinosWrappers::SparseMatrix system_matrix;
 
-  /// @brief System right-hand side.
+  /**
+   * @brief System right-hand side vector.
+   */
   TrilinosWrappers::MPI::Vector system_rhs;
 
-  /// @brief System solution.
+  /**
+   * @brief Solution vector.
+   */
   TrilinosWrappers::MPI::Vector solution;
 
-  /// @brief Parallel output stream.
+  /**
+   * @brief Parallel output stream.
+   */
   ConditionalOStream pcout;
 
-  /// @brief Time details parallel output stream.
+  /**
+   * @brief Output stream for timing details.
+   */
   ConditionalOStream time_details;
 
-
-  /// @brief DoFs owned by current process.
+  /**
+   * @brief Index set for locally owned degrees of freedom.
+   */
   IndexSet locally_owned_dofs;
 
-  /// @brief duration of the setup phase
+  /**
+   * @brief Time taken for setup.
+   */
   double setup_time;
 };
 
