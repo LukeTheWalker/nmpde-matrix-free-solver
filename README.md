@@ -24,13 +24,18 @@ The report for this project can be found here (TODO).
   ```
 - Execute the matrixfree and matrixbased versions, more details on the available tests that can be run is provided below
   ```
-  [mpirun -n XX] ./matrixfree [solve | convergence] [optional parameters]
-  [mpirun -n XX] ./matrixbased
+  [mpirun -n XX] ./<solver_type> <test> [parameters]
   ```
   The integer value `XX` is the required number of MPI processes to be spawned.
-- Output .vtu files can be found in `/build/output` folder for the matrixfree algorithm and in `/build` folder for the matrixbased one.
-
+- Output .vtu files can be found in `/build/output_ZZ` folder where `ZZ = [mf | mb | mg]` respectively for the matrixfree with GMG, basic matrixbased w/o multigrid, and matrixbased with GMG.
+- Available `<test> = [solve | convergence | dimension | polynomial] [optional parameters]` are described below.
+- An optional parameter is available only for the `solve` test where the user can specify the problem size (see below).
 ## Available tests
-- `solve n`:
+- `solve [n]`:
   Solve the problem printing informations about dofs, overall CPU time, and others at each multigrid cycle. At the end it provides the L2 and H1 errors to check the correctness of the solver. The optional parameter `n` is related to the number of initial refinements to perform on the mesh before starting the first cycle (default is `n=5`). The initial refinements that are actually performed on the mesh are computed as `n-dim` where `dim` is the dimension of the space in which the problem is defined.
 - `convergence`: Execute a convergence test solving with our multigrid matrix-free solver few times the same problem halving the cell size at each iteration. It prints only few summary informations for each step, and at the end it shows the convergence table and saves into the `build/output/convergence_mf.csv` the same data.
+- `dimension`: TODO
+- `polynomial`: TODO
+
+  ## Code documentation
+  The complete documentation of this project code can be found [here](https://lukethewalker.github.io/matrix-free-solver/docs/html/namespaces.html).
