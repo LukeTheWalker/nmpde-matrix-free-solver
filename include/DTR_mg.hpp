@@ -216,6 +216,11 @@ namespace DTR_mg
     MGConstrainedDoFs mg_constrained_dofs;
 
     /**
+     * @brief boolean controlling whether to output result
+     */
+    bool verbose;
+    
+    /**
      * @brief Diffusion coefficient.
      */
     problem_data::DiffusionCoefficient<dim> diffusion_coefficient;
