@@ -2,7 +2,7 @@
 #PBS -S /bin/bash
 
 
-#PBS -l nodes=2:ppn=20,walltime=10:00:00 -q gigat
+#PBS -l nodes=1:ppn=32,walltime=10:00:00 -q gigatlong
 #PBS -N matrix_free
 
 
@@ -26,8 +26,8 @@ sort ${PBS_NODEFILE} | uniq -c | awk '{ printf("%s\n", $2); }' > mpd.nodes
 # Actually run the simulation. The arguments to -n and -npernode should
 # be consistent with the resources requested at the top of the script.
 
-proc_tot=20
-proc_per_node=20
+proc_tot=32
+proc_per_node=32
 
 # Create the output directories
 mkdir output_mf
@@ -42,7 +42,7 @@ echo "=========================================" >> output_file.txt
 echo "    Matrixfree" >> output_file.txt
 echo "===================" >> output_file.txt
 
-for proc in 2 6 10 14 18 20
+for proc in 2 4 8 12 16 20 24 28 32
 do
   mpirun -machinefile mpd.nodes -n $proc -npernode $proc \
   ./matrixfree dimension >> output_file.txt 2>&1
@@ -56,7 +56,7 @@ echo "===================" >> output_file.txt
 echo "    Matrixbased" >> output_file.txt
 echo "===================" >> output_file.txt
 
-for proc in 2 6 10 14 18 20
+for proc in 2 4 8 12 16 20 24 28 32
 do
   mpirun -machinefile mpd.nodes -n $proc -npernode $proc \
   ./matrixbased dimension >> output_file.txt 2>&1
@@ -70,7 +70,7 @@ echo "===================" >> output_file.txt
 echo "    Multigrid" >> output_file.txt
 echo "===================" >> output_file.txt
 
-for proc in 2 6 10 14 18 20
+for proc in 2 4 8 12 16 20 24 28 32
 do
   mpirun -machinefile mpd.nodes -n $proc_tot -npernode $proc_per_node \
   ./multigrid dimension >> output_file.txt 2>&1
