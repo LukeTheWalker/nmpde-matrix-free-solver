@@ -22,7 +22,7 @@ def extract_proc(filepath):
 # If no filename passed, exit
 if len(sys.argv) < 2:
 	print("Usage: python plotter.py <plot_type> [basepath]")
-	print("<plot_type>\tstrong, weak, polynomial")
+	print("<plot_type>\tstrongcomp, strongsingle, polynomial, speedup, time")
 	print("[basepath]\toptional path to the directory containing the output files (default: current directory)")
 	print("\t\tbasepath must have: output_mf, output_mb, output_mg directories containing the .csv files")
 	exit()
@@ -66,6 +66,8 @@ for put in put_types:
 	# Correct eventual errors in the column number of setup+assemble time
 	if 'steup+assemble' in df_dim[put].columns:
 		df_dim[put].rename(columns={'steup+assemble': 'setup+assemble'}, inplace=True)
+	# Add a column for total time
+	df_dim[put]['total'] = df_dim[put]['setup+assemble'] + df_dim[put]['solve']
 
 	print(df_dim[put].info())
 
@@ -74,6 +76,8 @@ for put in put_types:
 	print("Analyzing", put, "file for polynomial:")
 	print("\t", file)
 	df_poly[put] = pd.read_csv(file, comment='#')
+	# Add a column for total time
+	df_poly[put]['total'] = df_poly[put]['setup+assemble'] + df_poly[put]['solve']
 	print(df_poly[put].info())
 
 
@@ -86,7 +90,7 @@ for put in put_types:
 if "strongcomp" in sys.argv[1]:
 	print("Plotting strong scaling for all solvers")
 	# Solve time as a function of the number of processes all in one plot for a single n_dof
-	for time_type in ("solve", "setup+assemble"):
+	for time_type in ("solve", "setup+assemble", "total"):
 		fig, ax = plt.subplots()
 		for put in put_types:
 			df = df_dim[put]
@@ -120,7 +124,7 @@ if "strongcomp" in sys.argv[1]:
 if "strongsingle" in sys.argv[1]:
 	print("Plotting strong scaling for each solver")
 	# Solve time as a function of the number of processes all in one plot for a single n_dof
-	for time_type in ("solve", "setup+assemble"):
+	for time_type in ("solve", "setup+assemble", "total"):
 		for put in put_types:
 			fig, ax = plt.subplots()
 			df = df_dim[put]
@@ -136,8 +140,9 @@ if "strongsingle" in sys.argv[1]:
 			#Plot ideal scaling
 			proc = df['proc']
 			solve = df[time_type]
-			ax.plot(proc, 1e2 / proc, label="Ideal scaling", linestyle='--', color='black')
-			ax.plot(proc, 1e1 / proc, linestyle='--', color='black')
+			ax.plot(proc, 1e3 / proc, label="Ideal scaling", linestyle='--', color='black')
+			ax.plot(proc, 1e2 / proc, linestyle='--', color='black')
+			ax.plot(proc, 1 / proc, linestyle='--', color='black')
 			ax.set_xlabel("Number of processors")
 			ax.set_ylabel(time_type + " time (s)")
 			ax.set_yscale('log')
@@ -153,7 +158,7 @@ if "strongsingle" in sys.argv[1]:
 #	Plot the MDofs/s metric as a function of the polynomial degree for all the solvers
 if "polynomial" in sys.argv[1]:
 	print("Plotting polynomial study for all solvers")
-	for time_type in ("solve", "setup+assemble"):
+	for time_type in ("solve", "setup+assemble", "total"):
 		fig, ax = plt.subplots()
 		for put in put_types:
 			df = df_poly[put]
@@ -172,7 +177,7 @@ if "polynomial" in sys.argv[1]:
 #	Plot the solve time and setup time as a function of the number of the dofs number for all the solvers
 if "time" in sys.argv[1]:
 	print("Plotting time study for all solvers")
-	for time_type in ("solve", "setup+assemble"):
+	for time_type in ("solve", "setup+assemble", "total"):
 		fig, ax = plt.subplots()
 		for put in put_types:
 			df = df_dim[put]
@@ -185,6 +190,9 @@ if "time" in sys.argv[1]:
 				lab = put + " (" + str(proc_value) + " procs)"
 				ax.plot(df1['n_dofs'], df1[time_type], label=lab, marker='o', linestyle='-.')
 
+		# Add reference
+		ax.plot(df1['n_dofs'], 1e-5*df1['n_dofs'], label="Linear", linestyle='--', color='black')
+		ax.plot(df1['n_dofs'], 1e-7*df1['n_dofs']**2, label="Quadratic", linestyle='--', color='blue')
 		ax.set_xlabel("Number of DoFs")
 		ax.set_ylabel(time_type + " time (s)")
 		ax.set_yscale('log')
@@ -196,6 +204,8 @@ if "time" in sys.argv[1]:
 		print("Time plot saved in", os.path.join(".", "plots", "time_" + time_type + ".png"))
 
 
+# ====== Plot for speedup ======
+#	Plot the solve speedup for mf with respect to mg in function of dofs number
 if "speedup" in sys.argv[1]:
 	print("Plotting solve speedup for mf with respect to mg in function of dofs")
 	fig, ax = plt.subplots()
