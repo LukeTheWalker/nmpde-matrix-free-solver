@@ -4,7 +4,7 @@ The matrixfree solver implements a Geometric MultiGrid preconditioner with Cheby
 
 This solver is based on the [deal.II library](https://github.com/dealii/dealii), mainly but not only on its [step-37](https://www.dealii.org/current/doxygen/deal.II/step_37.html) tutorial for the matrixfree solver and on other tutorials for the implementation of the matrixbased comparison.
 
-The report for this project can be found here (TODO).
+The report for this project can be found [here](https://github.com/LukeTheWalker/nmpde-matrix-free-solver/blob/main/report/pdf/matrixfree_report.pdf).
 
 ## Required software
 - dealii - version 9.5.1 (or newer)
