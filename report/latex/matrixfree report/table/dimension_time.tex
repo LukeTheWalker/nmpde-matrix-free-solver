@@ -1,0 +1,18 @@
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|c|c|c|c|c|}
+        \hline
+        & \multicolumn{2}{c|}{Multigrid Matrix-based} & \multicolumn{2}{c|}{Matrix-free} \\
+        \cline{2-5}
+        n\_dofs & Setup+assemble & Solve & Setup+assemble & Solve \\
+        \hline
+        263169 & 0.0857816 & 0.128677 & 0.0472224 & 0.0425927 \\
+        1050625 & 0.289255 & 0.441476 & 0.114377 & 0.137391 \\
+        4198401 & 1.18131 & 2.04448 & 0.367881 & 0.359345 \\
+        16785409 & 4.71038 & 9.84222 & 1.29147 & 1.33877 \\
+        67125249 & 19.0633 & 33.6557 & 4.82622 & 5.47594 \\
+        \hline
+    \end{tabular}
+    \caption{Table comparing setup + assemble and solve time needed by our mg and mf implementations as the number of Dofs increases}
+    \label{tab:dim_time}
+\end{table}

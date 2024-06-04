@@ -1,0 +1,16 @@
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|c|c|c|c|c|}
+        \hline
+        Cells & L2 error & L2 order & H1 error & H1 order \\
+        \hline
+        1024 & 2.330877e-06 & -  & 4.834520e-04 & - \\
+        4096 & 2.913946e-07 & 3.00 & 1.208651e-04 & 2.00 \\
+        16384 & 3.642542e-08 & 3.00 & 3.021641e-05 & 2.00 \\
+        65536 & 4.553212e-09 & 3.00 & 7.554112e-06 & 2.00 \\
+        \hline
+    \end{tabular}
+    \caption{Convergence table for our matrix-free implementation solving the above problem with finite element polynomial degree 2.}
+    \label{tab:conv_mf}
+\end{table}
